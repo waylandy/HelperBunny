@@ -13,12 +13,13 @@ For development, turn off module compiling: sys.dont_write_bytecode = True
 Other helful functions: "np.set_printoptions(suppress=True)"
 """ % __release__)
 
-
-# from importlib import reload
-# import sys
-# sys.dont_write_bytecode = True
-# import HelperBunny as hb
-# reload(hb)
+"""
+from importlib import reload
+import sys
+sys.dont_write_bytecode = True
+import HelperBunny as hb
+reload(hb)
+"""
 
 from .potpourri import *
 from .math import *
@@ -26,3 +27,9 @@ from .reader import *
 from .sequence import *
 from .wrapper import *
 from .plot import *
+
+"""
+git add .
+git commit -m 'message'
+git push
+"""

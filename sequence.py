@@ -1,25 +1,8 @@
 import sys
-import os
 import re
-import subprocess
-from datetime import datetime
 from itertools import groupby
 import numpy as np
 import pandas as pd
-from scipy import stats
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from IPython.display import Image, display
-
-__release__ = '101225'
-
-sys.stderr.write(""" Helper Bunny pre-Alpha [ Release %s ]
-For development, turn off module compiling: sys.dont_write_bytecode = True
-Other helful functions: "np.set_printoptions(suppress=True)"
-""" % __release__)
-
-
-
 
 """
     XMA format notes:
@@ -642,96 +625,10 @@ class HPT:
             c    = ' > '.join(self.names[_] for _ in self.group[i])
             sys.stdout.write('[ %s ] %s: %s\n' % (a,b,c))
 
+
 """
-    Other useful tools
+    Other useful stuff
 """
-
-class DSSP:
-    """
-        Read DSSP output files; Dumps to featured-linked fa files (ffa)
-        Provide a file handle to output, not a filename
-        Example:
-            DSSP(dssp_file).tocfa()
-
-    """
-    def __init__(self, dsspfile, ss=7):
-        assert ss in [3, 7]
-        self.ss       = ss
-        self.tr       = dict(['GH', 'HH', 'IH', 'EE', 'BE', 'SL', 'TL', 'CL'])
-        self.name     = os.path.splitext(os.path.basename(dsspfile))[0]
-        self._build(open(dsspfile))
-
-    def _build(self, h):
-        # mostly taken from PDB.DSSP
-        self.data, start = [], 0
-        for l in h.readlines():
-            sl = l.split()
-            if len(sl) < 2:
-                continue
-            if sl[1] == "RESIDUE":
-                start = 1
-                continue
-            if not start:
-                continue
-            if l[9] == " ":
-                self.data += [l[13] if l[14]!='*' else l[14]]
-                continue
-            dssp_index = int(l[:5])
-            resseq = int(l[5:10])
-            icode = l[10]
-            chainid = l[11]
-            aa = l[13]
-            ss = l[16]
-            if ss == " ":
-                ss = "C"
-            try:
-                NH_O_1_relidx = int(l[38:45])
-                NH_O_1_energy = float(l[46:50])
-                O_NH_1_relidx = int(l[50:56])
-                O_NH_1_energy = float(l[57:61])
-                NH_O_2_relidx = int(l[61:67])
-                NH_O_2_energy = float(l[68:72])
-                O_NH_2_relidx = int(l[72:78])
-                O_NH_2_energy = float(l[79:83])
-                acc = int(l[34:38])
-                phi = float(l[103:109])
-                psi = float(l[109:115])
-            except ValueError as exc:
-                if l[34] != " ":
-                    shift = l[34:].find(" ")
-                    NH_O_1_relidx = int(l[38 + shift : 45 + shift])
-                    NH_O_1_energy = float(l[46 + shift : 50 + shift])
-                    O_NH_1_relidx = int(l[50 + shift : 56 + shift])
-                    O_NH_1_energy = float(l[57 + shift : 61 + shift])
-                    NH_O_2_relidx = int(l[61 + shift : 67 + shift])
-                    NH_O_2_energy = float(l[68 + shift : 72 + shift])
-                    O_NH_2_relidx = int(l[72 + shift : 78 + shift])
-                    O_NH_2_energy = float(l[79 + shift : 83 + shift])
-                    acc = int((l[34 + shift : 38 + shift]))
-                    phi = float(l[103 + shift : 109 + shift])
-                    psi = float(l[109 + shift : 115 + shift])
-                else:
-                    raise ValueError(exc)
-            self.data+=[(chainid, aa, ss, phi, psi)]
-
-    def to_cfa(self, *args):
-        h = sys.stdout if len(args)==0 else args[0]
-        for i, g in groupby(self.data, lambda x: x!='*'):
-            if not i:
-                continue
-            g   = list(g)
-            ch  = g[0][0]
-
-            gap = ['.' if i!='!' else '!' for i in g]
-            gpi = [n for n, i in enumerate(gap) if i=='!']
-            gpm = [i+1 for i in gpi] + [i-1 for i in gpi]
-            gap = ''.join('!' if i in gpm else '.' for i in range(len(gap)) if i not in gpi)
-            aa  = ''.join(i[1] for i in g if i!='!')
-            ss  = ''.join(i[2] for i in g if i!='!')
-            if len(gap)!=len(aa):
-                sys.stderr.write('ERROR PARSING: %s' % self.name)
-                continue
-            h.write('>%s_%s\n%s\n%s\n%s\n\n'%(self.name, ch, aa, ss, gap))
 
 class CDD:
     def __init__(self, cdd_file):
@@ -753,97 +650,3 @@ class CDD:
         self.df.sort_values(by=['Index', 'mid'], ascending=[1, 1], inplace=True)
         self.df.set_index(['Query', 'Accession'], inplace=True)
         self.df = self.df[['From', 'To', 'Short name', 'Superfamily', 'Hit type', 'PSSM-ID', 'E-Value', 'Incomplete']]
-
-"""
-    CFA stat functions
-"""
-
-def mode(x):
-    i, c = np.unique(x, return_counts=True)
-    return i[c.argmax()]
-
-def pmf(m, items='ACDEFGHIKLMNPQRSTVWY-X'):
-    # probability mass function
-    return np.array([[(i==t).sum() for t in items] for i in m.T])
-
-def kld(p, q):
-    # kullback leibler divergence
-    return stats.entropy(p, q)
-
-def jsd(p, q):
-    # jensen shannon divergence
-    p, q = p.flatten(), q.flatten()
-    p, q = p/p.sum(), q/q.sum()
-    m = (p + q) / 2
-    return (kld(p, m) + kld(q, m)) / 2
-
-def contrast_jsd(cfa_array, mask, cutoff=0.1):
-    p = pmf(cfa_array[ mask], items='ACDEFGHIKLMNPQRSTVWY-')
-    q = pmf(cfa_array[~mask], items='ACDEFGHIKLMNPQRSTVWY-')
-    y = np.array([jsd(a,b) for a,b in zip(p,q)])
-    y[((cfa_array[mask]!='-').sum(0)/mask.sum())<cutoff] = 0
-    return np.arange(y.shape[0])+1, y
-
-def contrast_kld(cfa_array, mask, cutoff=0.1):
-    p = pmf(cfa_array[ mask], items='ACDEFGHIKLMNPQRSTVWY-')
-    q = pmf(cfa_array[~mask], items='ACDEFGHIKLMNPQRSTVWY-')
-    y = np.array([kld(a,b) for a,b in zip(p,q)])
-    y[((cfa_array[mask]!='-').sum(0)/mask.sum())<cutoff] = 0
-    return np.arange(y.shape[0])+1, y
-
-"""
-    CFA plot functions
-"""
-
-class WebLogo:
-    """
-        Plots weblogos from CFA arrays; requires weblogo3 and ghostscript
-        Example:
-            wl = WebLogo()
-            wl.plot(CFA_Array(cfa_file.ar)
-    """
-    def __init__(self, bin='weblogo'):
-        self._temp  = lambda: datetime.now().strftime("%y%m%d-%H%M%S-%f")
-        self.bin    = bin
-
-    def plot(self, aln, name=None, save=False, mode=None):
-        ar2fa = lambda x : '\n'.join([''.join(i) for i in x])
-        aln   = aln if isinstance(aln, str) else ar2fa(aln)
-        if name==None:
-            name = self._temp()
-        tempfile = name+'.WEBLOGO_TEMP.fa'
-        outfile  = name
-        mode     ='ss' if mode==None and set(aln).issubset(set('BEST-HIGC\n')) else 'aa'
-        ssmode   = '' if mode!='ss' else " -a GHICSTBE -C red GHI helix -C black CST loop -C blue BE sheet"
-        with open(tempfile, 'w') as w:
-            w.write(aln)
-        cmd = "%s -f %s -o %s -n 500 --scale-width NO --errorbars NO --fineprint . -F jpeg --resolution 150 -Y NO%s" % (
-            self.bin, tempfile, outfile+'.jpeg', ssmode)
-        subprocess.call(cmd.split())
-        display(Image(filename=outfile+'.jpeg'))
-        os.remove(outfile+'.jpeg')
-        if save:
-            cmd = '%s -f %s -o %s -n 500 --scale-width NO --errorbars NO --fineprint . -F eps -Y NO%s' % (
-                self.bin, tempfile, outfile+'.temp.eps', ssmode)
-            subprocess.call(cmd.split())
-            cmd = 'gs -o %s -dNoOutputFonts -sDEVICE=eps2write %s' % (
-                outfile+'.eps', outfile+'.temp.eps')
-            subprocess.call(cmd.split())
-            os.remove(outfile+'.temp.eps')
-        os.remove(tempfile)
-
-def draw_ss(ss, x, ypos=20, height=2, ax=None):
-    ypos -= height/2
-    for s, p in zip(ss, x):
-        if s == '-':
-            continue
-        elif s in 'EB':  # blue
-            pat=patches.Rectangle(width=1,height=height,fc='#0000ff',lw=0,xy=(p-0.5, ypos))
-        elif s in 'GHI': # red
-            pat=patches.Rectangle(width=1,height=height,fc='#ff0000',lw=0,xy=(p-0.5, ypos))
-        elif s in 'STC': # black
-            pat=patches.Rectangle(width=1,height=height/4,fc='#000000',lw=0, xy=(p-0.5,ypos+(height*(3/8))))
-        if ax == None:
-            plt.gca().add_patch(pat)
-        else:
-            ax.add_patch(pat)

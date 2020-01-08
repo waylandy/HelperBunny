@@ -2,4 +2,4 @@
 
 Author: Wayland Yeung
 
-A collection of helpful abstractions & functions for bioinformatics. 
+A collection of helpful abstractions & functions for bioinformatics!

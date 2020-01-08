@@ -1,53 +1,10 @@
 import sys
 from itertools import groupby
-import pandas as pd
 
 """
     XMA format notes:
-     An attempt at a generalized format of CMA, MMA, SMA, etc.
+     An attempt at a reading a generalized format of CMA, MMA, SMA, etc.
 """
-
-class FA_Iterator:
-    """
-    An iterator to read FA files
-    returns (name, seq)
-    """
-    def __init__(self, fafile, parsetags=False):
-        self._fafile    = fafile
-        self._tags      = parsetags
-        self.isname     = lambda l: l[0]=='>'
-
-    def __iter__(self):
-        self._r = open(self._fafile)
-        self._i = groupby(self._r, self.isname)
-        self._s = False
-        return self
-
-    def _parse_tags(self, seq):
-        seq = seq.split()
-        chunk, k = [seq[0]], True
-        for n, (k, group) in enumerate(groupby(seq[1:], lambda x: '=' in x or ':' in x)):
-            if k == True:
-                for g in group:
-                    chunk += [g]
-            else:
-                if n != 0:
-                    chunk[-1] += ' '+' '.join(list(group))
-                else:
-                    chunk += [' '.join(list(group))]
-        return chunk
-
-    def __next__(self):
-        while True:
-            head, group = next(self._i)
-            if not head and self._s:
-                self._s = False
-            elif head:
-                line = next(group)
-            else:
-                name = self._parse_tags(line.rstrip()[1:]) if self._tags else line.rstrip()[1:]
-                seq  = ''.join(l.rstrip() for l in group)
-                return name, seq
 
 class XMA_Block:
     """
@@ -129,28 +86,3 @@ class XMA:
         for i in self:
             for j in i:
                 h.write('>%s XMA:%s\n%s\n\n' % (j[1][0], i.name, ''.join(j[2])))
-
-"""
-    Other useful stuff
-"""
-
-class CDD:
-    def __init__(self, cdd_file):
-        self.cdd_file = cdd_file
-        self._build()
-        return
-
-    def __getitem__(self, key):
-        return self.df.xs(key, level='Query')
-
-    def _build(self):
-        it, i = iter(open(self.cdd_file)), -1
-        while not next(it).startswith('Query'): i+=1
-        self.df = pd.read_csv(self.cdd_file, sep='\t', skiprows=i)
-        self.df['mid']   =  (self.df['From'].values + self.df['To'].values)/2
-        index, query     = list(zip(*[i.split('#')[1].split(' - ') for i in self.df['Query']]))
-        self.df['Query'] = query
-        self.df['Index'] = list(map(int, index))
-        self.df.sort_values(by=['Index', 'mid'], ascending=[1, 1], inplace=True)
-        self.df.set_index(['Query', 'Accession'], inplace=True)
-        self.df = self.df[['From', 'To', 'Short name', 'Superfamily', 'Hit type', 'PSSM-ID', 'E-Value', 'Incomplete']]

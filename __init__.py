@@ -12,7 +12,7 @@
 import sys
 
 
-__release__ = '200103'
+__release__ = '200108'
 __version__ = __release__
 
 
@@ -38,13 +38,13 @@ import HelperBunny as hb
 reload(hb)
 """
 
+from .reader import *
 from .seqarray import *
+from .wrapper import *
 
-from .lib.potpourri import *
 from .lib.math import *
-from .lib.reader import *
-from .lib.wrapper import *
 from .lib.plot import *
+from .lib.potpourri import *
 
 
 """
@@ -52,3 +52,8 @@ git add .
 git commit -m 'message'
 git push
 """
+
+aa = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
+      'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N',
+      'GLY': 'G', 'HIS': 'H', 'LEU': 'L', 'ARG': 'R', 'TRP': 'W',
+      'ALA': 'A', 'VAL': 'V', 'GLU': 'E', 'TYR': 'Y', 'MET': 'M'}

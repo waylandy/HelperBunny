@@ -12,7 +12,7 @@
 import sys
 
 
-__release__ = '200108'
+__release__ = '200116'
 __version__ = __release__
 
 

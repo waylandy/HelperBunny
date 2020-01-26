@@ -12,22 +12,11 @@ MA-AG*
 """
 
 env = environ()
-automodel.writeintermediates
 for model in ['name2']:
     hm = automodel(env, alnfile='align.ali',
                    knowns='name1', sequence=model,
                    assess_methods=(assess.DOPE,assess.GA341))
-    a.starting_model = 1
-    a.ending_model   = 3
-    hm.make()
-
-env = environ()
-automodel.writeintermediates
-for model in ['name2']:
-    hm = automodel(env, alnfile='align.ali',
-                   knowns='name1', sequence=model,
-                   assess_methods=(assess.DOPE,assess.GA341))
-    a.starting_model = 1
-    a.ending_model   = 3
+    hm.starting_model = 1
+    hm.ending_model   = 3
     hm.make()
 

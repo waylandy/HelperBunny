@@ -109,10 +109,10 @@ class DSF(dict):
             b, t   = ym.min(), ym.max()
             return (y-b)/(t-b)
         
-        print(self['Name'])
         report  = []
         figsize = self['Grid Size'][::-1]*scale
         fig, ax = plt.subplots(*self['Grid Size'], figsize=figsize, sharex=True)
+        fig.suptitle(self['Name'], fontsize="xx-large")
         for _ in self.samples():
             ax[_['ind']].set_title(_['Sample'])
             x, y = _['Data']
@@ -122,7 +122,7 @@ class DSF(dict):
             xm, ym = detector(x[inc], y[inc])
             yr     = rescale(x, y, xm, ym)
             
-            ###### 
+            ################################################################## 
             model      = lambda x, tm, slope: (1/(1+np.exp((tm-x)/slope)))
             norm       = lambda x: (x-x.min())/(x.max()-x.min())
             popt, pcov = curve_fit(model, 
@@ -141,7 +141,7 @@ class DSF(dict):
                 ax[_['ind']].text(popt[0], yr.min()+(yr.max()-yr.min()+0.2)*0.75,
                                   '%.2f  ' % popt[0], ha='right', va='top')
                 report.append((_['Sample'], round(popt[0], 2)))
-            ###### 
+            ##################################################################
 
             ax[_['ind']].plot(x, yr, color='blue', lw=0.35)
             ax[_['ind']].set_xlim(x.min(), x.max())
@@ -149,7 +149,8 @@ class DSF(dict):
             ax[_['ind']].set_ylim(yr.min()-0.1,yr.max()+0.1)
             ax[_['ind']].set_yticklabels([])
             ax[_['ind']].set_yticks([])
-        report = pd.DataFrame(report, columns=['Sample','Tm']).set_index('Sample')
-        display(report)
+            ax[_['ind']].tick_params(axis='x', length=0)
+            
+        display(pd.DataFrame(report, columns=[self['Name'],'Tm']).set_index(self['Name']))
         return plt.show()
 

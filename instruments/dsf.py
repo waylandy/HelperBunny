@@ -4,6 +4,8 @@ import pandas as pd
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
+from IPython.display import display
+np.set_printoptions(precision=6, suppress=True)
 
 class DSF(dict):
     """
@@ -84,68 +86,70 @@ class DSF(dict):
         return plt.show()
 
     def plot_fit(self, scale=[5,2]):
-        """
-        melt curves are fit using the boltzman sigmoid by the following algorithm
-            (1) melt region indices are detected by the first instance of a positive first derivative
-                ! Currently trying other solutions
-            (2) flourescense is normalized based on the melt region as defined by in (1)
-            (3) indices of the melt region are expanded outwards by 2 datapoints
-            (4) the expanded melt region is fit to a boltzman sigmoid equation
-                ! Since the data was normalized, baseline and plateau are assumed 0 and 1
-        """
-        enends  = lambda x: (x[0][0], x[-1][0])
-        mranges = lambda x: [enends(list(i)) for k, i in groupby(enumerate(inc), lambda x: x[1]) if k]
-        longest = lambda x: x[np.argmax([i[1]-i[0] for i in x])] # for detection of tm shift, reconsider
-        clmask  = lambda x: x if sum(x)!=0 else np.array([True]*x.shape[0])
+        def gradient(x, y):
+            frame  = lambda x: [(x[n-1 if n>1 else 0:n+2]) for n, xi in enumerate(x)] 
+            avg    = lambda x: sum(x)/len(x)
+            slope  = lambda x, y: -avg([(xj-xi)/(yi-yj) for (xi,xj),(yi, yj) in zip(zip(x,x[1:]),zip(y,y[1:]))])
+            turn   = lambda x, y: (y[1]>y[0] and y[1]>y[2]) or (y[1]<y[0] and y[1]<y[2])
+            der    = lambda x, y: slope(x,y) if len(x)!=3 else 0 if turn(x,y) else slope(x,y)
+            return np.array([der(xf, yf) for xf, yf in zip(frame(x),frame(y))])
+            
+        def detector(x, y):
+            ends   = lambda x: (x[0][0], x[-1][0])
+            rise   = lambda x: np.array([(0,0)]+[ends(list(i)) for k, i in groupby(enumerate(x),lambda x:x[1]>=0) if k])
+            melt   = lambda x: x[np.subtract(*x.T[::-1])>1]
+            melts  = melt(rise(gradient(x, y)))
+            try:
+                ml, mr = melts[np.argmax([y[j]-y[i] for i, j in melts])]
+            except:
+                ml, mr = 0, y.shape[0]
+            return x[ml:mr+1], y[ml:mr+1]
         
-        refzero = lambda x, y: x - y.min()
-        refstnd = lambda x, y: refzero(x, y)/refzero(x, y).max()
+        def rescale(x, y, xm, ym):
+            b, t   = ym.min(), ym.max()
+            return (y-b)/(t-b)
         
-        pushb   = lambda x: 0 if x-2<0 else  x-2 
-        pusht   = lambda x, y: y-1 if x+2>y else  x+2
-        push    = lambda x, y: (pushb(x[0]), pusht(x[1], y.shape[0]))
-
         print(self['Name'])
+        report  = []
         figsize = self['Grid Size'][::-1]*scale
         fig, ax = plt.subplots(*self['Grid Size'], figsize=figsize, sharex=True)
-
         for _ in self.samples():
-            x, y   = _['Data']
-            
-            d1     = np.gradient(y)
-            inc    = clmask(d1>0)
-            ystnd  = refstnd(y, y[inc])
-            
-            # t, b   = mranges(inc)[0]   
-            t, b   = longest(mranges(inc))
-            et, eb = push((t, b), inc) # extended rise for curve fitting
-            
             ax[_['ind']].set_title(_['Sample'])
-            ax[_['ind']].plot(x, ystnd, color='red', lw=0.35)
-            # ax[_['ind']].plot(x[et:eb], ystnd[et:eb])
+            x, y = _['Data']
+            
+            inc_   = lambda x: [j>i for i,j in zip(x, x[1:])]+[True]
+            inc    = inc_(x)
+            xm, ym = detector(x[inc], y[inc])
+            yr     = rescale(x, y, xm, ym)
             
             ###### 
-            
             model      = lambda x, tm, slope: (1/(1+np.exp((tm-x)/slope)))
+            norm       = lambda x: (x-x.min())/(x.max()-x.min())
             popt, pcov = curve_fit(model, 
-                                   x[et:eb],
-                                   ystnd[et:eb], 
-                                   p0 = (x[t:b].mean(), 0.5),
+                                   xm,
+                                   norm(ym), 
+                                   p0 = ((xm[0]+xm[-1])/2, 0.5),
                                    method='lm', 
-                                   maxfev=9999)
+                                   maxfev=9999,
+                                  )
             fx = np.arange(x.min(), x.max(), 0.1)
             fy = np.array([model(i, *popt) for i in fx])
-            ax[_['ind']].plot(fx, fy, color='darkgrey', lw=2)
+            ax[_['ind']].plot(fx, fy, color='darkgrey', lw=2.4)
             
             if popt[0] < x.max() and popt[0] > x.min() :
-                ax[_['ind']].plot([popt[0]]*2, (-2,2), color='black', ls=':')
-                ax[_['ind']].text(popt[0], 0.9, '%.2f  ' % popt[0], ha='right', va='top')
-            
+                ax[_['ind']].plot([popt[0]]*2, (yr.min()-0.1,yr.max()+0.1), color='black', ls=':')
+                ax[_['ind']].text(popt[0], yr.min()+(yr.max()-yr.min()+0.2)*0.75,
+                                  '%.2f  ' % popt[0], ha='right', va='top')
+                report.append((_['Sample'], round(popt[0], 2)))
             ###### 
 
-            ax[_['ind']].set_ylim(-0.1, 1.1)
+            ax[_['ind']].plot(x, yr, color='blue', lw=0.35)
+            ax[_['ind']].set_xlim(x.min(), x.max())
+            # ax[_['ind']].set_ylim(-0.1,1.1)
+            ax[_['ind']].set_ylim(yr.min()-0.1,yr.max()+0.1)
             ax[_['ind']].set_yticklabels([])
             ax[_['ind']].set_yticks([])
-        ax[_['ind']].set_xlim(x.min(), x.max())
+        report = pd.DataFrame(report, columns=['Sample','Tm']).set_index('Sample')
+        display(report)
         return plt.show()
-        
+

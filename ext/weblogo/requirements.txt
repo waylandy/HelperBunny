@@ -1,0 +1,15 @@
+numpy
+scipy
+setuptools
+setuptools-scm
+
+# Testing
+pytest
+pytest-cov
+tox
+flake8
+mypy
+
+# Docs
+sphinx
+guzzle_sphinx_theme

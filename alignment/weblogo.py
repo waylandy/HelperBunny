@@ -57,3 +57,50 @@ wl = WebLogo(aar.positions()[:,:50])
 wl.show()
 
 
+
+
+import io
+from datetime import datetime
+
+from PIL import Image
+
+from helperbunny.ext.weblogo import weblogo 
+
+
+
+name, aln    = hb.AlignmentArray(child[0])
+alnarray     = aln.define_insertions(gap=.5).PositionArray()[:,:30]
+
+wfasta       = lambda x:'\n'.join(map(lambda x:'>%s\n%s'%x,enumerate(map(lambda x:''.join(x),x))))
+tempfasta    = io.StringIO(wfasta(alnarray))
+seqs         = weblogo.read_seq_data(tempfasta)
+logodata     = weblogo.LogoData.from_seqs(seqs)
+logooptions  = weblogo.LogoOptions(
+                    title           = '',
+                    fineprint       = '',
+                    show_yaxis      = False,
+                    show_xaxis      = False,
+                    scale_width     = True,
+                    stacks_per_line = 50,
+                    show_errorbars  = False
+                                )
+logoformat   = weblogo.LogoFormat(logodata, logooptions)
+output       = weblogo.png_print_formatter(logodata, logoformat)
+
+outstream    = io.BytesIO(output)
+
+# img = Image.open(outstream).convert('RGBA')
+# arr = np.array(img.convert('RGBA'))[::-1]
+# arr[(arr==255).sum(2)==4,3] = 0
+# col = np.where(arr[:,:,3].sum(axis=0)!=0)[0]
+# arr = arr[:,col.min():1+col.max()]
+
+from bokeh.plotting import figure, show, output_file
+from bokeh.models import ColumnDataSource
+from bokeh.models.glyphs import ImageURL
+from bokeh.io import show
+
+plot   = figure()
+plot.image_rgba(image=[arr], x=0, y=0, dw=3, dh=0.5)
+show(plot)
+

@@ -4,7 +4,7 @@ import numpy as np
 """
     BPPS output parsers:
      these objects help parse BPPS outputs
-     these are not guaranteed to work as I cant find documentated standards
+     these are not guaranteed to work as I cant find documented standards
 """
 
 class HPT:

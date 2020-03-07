@@ -1,5 +1,8 @@
+import sys
+import numpy as np
+
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, Plot, Grid, Range1d
+from bokeh.models import ColumnDataSource, Plot, Grid, Range1d,          SingleIntervalTicker, LinearAxis
 from bokeh.models.glyphs import Text, Rect
 
 aa_color = { # based on default colors from weblogo3
@@ -26,8 +29,9 @@ aa_color = { # based on default colors from weblogo3
     '-': 'white'
     }
 
-def AlignmentViewer(data, scale=17, maxrows=30, color=aa_color, plot_width=1000, highlight=False):
+def AlignmentViewer(data, scale=17, maxrows=20, color=aa_color, plot_width=1000, highlight=False):
     # data is a position array
+    osh    = data.shape[0]
     data   = data[:maxrows] if data.shape[0] > maxrows else data
     x, y   = data.shape[::-1]
     x, y   = np.meshgrid(np.arange(1, 1+x), np.arange(0,y,1))
@@ -48,6 +52,7 @@ def AlignmentViewer(data, scale=17, maxrows=30, color=aa_color, plot_width=1000,
     plot   = figure(title            = None, 
                     plot_width       = plot_width, 
                     plot_height      = plot_height, 
+                    x_axis_type      = None,
                     x_range          = Range1d(0, plot_width/scale), 
                     y_range          = Range1d(-plot_height/scale,0), 
                     tools            = "xpan,reset", 
@@ -56,6 +61,10 @@ def AlignmentViewer(data, scale=17, maxrows=30, color=aa_color, plot_width=1000,
                     background_fill_color = 'black',
                     background_fill_alpha = 0.12,
                    )
+
+    ticker = SingleIntervalTicker(interval=5, num_minor_ticks=5)
+    xaxis = LinearAxis(ticker=ticker)
+    plot.add_layout(xaxis, 'above')
 
     if highlight:
         rect  = Rect(x="x", y="recty",  
@@ -70,12 +79,11 @@ def AlignmentViewer(data, scale=17, maxrows=30, color=aa_color, plot_width=1000,
                  text_font_size="%spt" % fontsize) #, text_font_style='bold')
     plot.add_glyph(source, text)
 
-    plot.grid.visible = False
+    plot.grid.visible  = False
     plot.yaxis.visible = False
     plot.xaxis.major_label_text_font_style = "bold"
+    plot.xaxis.major_label_text_font_size  = "12pt"
+    plot.xaxis.major_label_text_font       = "monospace"
+    sys.stderr.write('AlignmentViewer         : Showing %s of %s total sequences' % (data.shape[0], osh))
     return plot
 
-
-data    = aln.PositionArray()
-seqplot = AlignmentViewer(data, scale=30)
-show(seqplot)

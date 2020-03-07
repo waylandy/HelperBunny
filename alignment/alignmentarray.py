@@ -5,9 +5,8 @@ import numpy as np
 from scipy.stats import entropy
 from scipy.spatial.distance import jensenshannon
 
-from .alignmentviewer import AlignmentViewer
+from  .. import fig
 from .exporter import AlignmentExporter
-
 
 class AlignmentArray(np.ndarray):
     """
@@ -21,11 +20,6 @@ class AlignmentArray(np.ndarray):
     def __array_finalize__(self, obj):
         if obj is None: 
             return
-
-############################################ visualizing the alignment
-
-    def show(self, **kwargs):
-        return AlignmentViewer(self.positions(), **kwargs)
 
 ############################################ low level routines
 
@@ -125,29 +119,24 @@ class AlignmentArray(np.ndarray):
         if cl:
             output.close()
 
+############################################ visualizing the alignment
 
+    def show_logo(self, **kwargs):
+        return self.PositionArray(v=0).show_logo(**kwargs)
 
+    def show_aln(self, **kwargs):
+        return self.PositionArray(v=0).show_aln(**kwargs)
 
-
-
-
-
-
-
-
-
-
+    def show(self, **kwargs):
+        return self.PositionArray(v=0).show(**kwargs)
 
 ############################################    ############################################
 
-
 alphabet = 'ARNDCQEGHILKMFPSTWYV-'
-
 
 background = ('ARNDCQEGHILKMFPSTWYV', np.array( # BLOSUM62 DISTRIBUTION
             [0.078, 0.051, 0.041, 0.052, 0.024, 0.034, 0.059, 0.083, 0.025, 0.062,
              0.092, 0.056, 0.024, 0.044, 0.043, 0.059, 0.055, 0.014, 0.034, 0.072]))
-
 
 class PositionArray(np.ndarray):
     """
@@ -185,7 +174,7 @@ class PositionArray(np.ndarray):
         # if argument is given, compares each column of the 2 alignments, number of columns must be same in both
         l = len(arg)
         if l>1:
-            raise Exception('Provide only 1 argument to be compared against or none to compare against predetermined background')
+            raise Exception('Provide only 1 argument to be compared against or none to compare against predetermined background (blosum62)')
         elif l==1:
             assert arg[0].shape[1], self.shape[1] 
             b = self.probability(alphabet=background[0])[0].T
@@ -200,7 +189,7 @@ class PositionArray(np.ndarray):
         # if argument is given, compares each column of the 2 alignments, number of columns must be same in both
         l = len(arg)
         if l>1:
-            raise Exception('Provide only 1 argument to be compared against or none to compare against predetermined background')
+            raise Exception('Provide only 1 argument to be compared against or none to compare against predetermined background (blosum62)')
         elif l==1:
             assert arg[0].shape[1], self.shape[1] 
             b = self.probability(alphabet=background[0])[0].T
@@ -219,12 +208,24 @@ class PositionArray(np.ndarray):
 
 ############################################ visualizing the alignment
 
-    def show(self, **kwargs):
-        return AlignmentViewer(self, **kwargs)
+    def show_logo(self, **kwargs):
+        # takes in a position array, arguments are passed to SequenceLogoViewer
+        plot = fig.SequenceLogoViewer(self, **kwargs)
+        fig.show(plot)
 
+    def show_aln(self, **kwargs):
+        # takes in a position array, arguments are passed to AlignmentViewer
+        plot = fig.AlignmentViewer(self, **kwargs)
+        fig.show(plot)
 
-
-
+    def show(self, plot_width=1000):
+        # takes in a position array
+        plot1   = fig.SequenceLogoViewer(self, plot_width=plot_width, plot_height=230)
+        plot2   = fig.AlignmentViewer(self, plot_width=plot_width, scale=20)
+        plot1.x_range = plot2.x_range
+        plot1.xaxis.visible = False
+        plot = fig.gridplot([[plot1], [plot2]], toolbar_location=None)
+        fig.show(plot)
 
 
 

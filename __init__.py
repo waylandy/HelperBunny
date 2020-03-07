@@ -26,14 +26,14 @@ Keep release and version number synced
 """
 
 sys.stderr.write("""Helper Bunny pre-Alpha [ Release %s ]
-For development, turn off module compiling: sys.dont_write_bytecode = True
-Other helful functions: "np.set_printoptions(suppress=True)"
+import sys 
+sys.dont_write_bytecode = True
+
+import numpy as np
+np.set_printoptions(suppress=True)
 
 Dependencies (update as i go along?):
-sudo python3 -m pip install numpy pandas scipy bokeh panel weblogo
-
-
-
+sudo python3 -m pip install numpy pandas scipy bokeh panel pillow
 """ % __version__)
 
 

@@ -20,9 +20,9 @@ class AlignmentExporter:
             output.write(fname(n))
             output.write(fseq(s))
     
-    def to_xma(self, alnarray, name, output=sys.stdout):
+    def to_xma(self, alnarray, name, head='xmaoutput', output=sys.stdout):
         nseq, npos = alnarray.positions().shape
-        head = ('[0_(1)=xmaoutput(%s){go=0,gx=0,pn=0.0,lf=0,rf=0}:\n(%s)%s\n\n' % (nseq, npos, '*'*npos))
+        head = ('[0_(1)=%s(%s){go=0,gx=0,pn=0.0,lf=0,rf=0}:\n(%s)%s\n\n' % (head, nseq, npos, '*'*npos))
         output.write(head)
         ispos    = lambda x: False if len(x)!=1 else not x.islower()
         ispos    = [i[0] for i in enumerate(map(ispos, alnarray[0])) if i[1]==True]

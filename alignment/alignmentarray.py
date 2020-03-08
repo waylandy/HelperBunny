@@ -6,7 +6,6 @@ from scipy.stats import entropy
 from scipy.spatial.distance import jensenshannon
 
 from  .. import fig
-from .exporter import AlignmentExporter
 
 class AlignmentArray(np.ndarray):
     """
@@ -94,30 +93,78 @@ class AlignmentArray(np.ndarray):
 
 ############################################ writing files
 
-    def export(self, name, output=None, format=None):
-        ext = lambda x: x.split('.')[-1]
-        if format==None:
-            if output==None:
-                format = 'cfa'
-            else:
-                format = ext(output)
-        if output==None:
-            output=sys.stdout
-            cl = False
+    def to_cfa(self, *arg, output=sys.stdout):
+        assert len(self.shape)==2
+        if len(arg)==0:
+            it = enumerate(self)
         else:
-            output=open(output, 'w')
-            cl = True
+            it, *_ = arg
+            assert(len(self)==len(it))
+            it = zip(it, self)
+        fmt = lambda x: '\n>%s\n%s\n' % (x[0],''.join(x[1]))
+        for i in it:
+            output.write(fmt(i))
 
-        exp = AlignmentExporter()
-        if   format in ('cfa'):
-            exp.to_cfa(self, name, output)
-        elif format in ('fasta', 'fa'):
-            exp.to_fasta(self, name, output)
-        elif format in ('cma', 'mma'):
-            exp.to_xma(self, name, output)
+    def to_fasta(self, *arg, output=sys.stdout):
+        assert len(self.shape)==2
+        if len(arg)==0:
+            it = enumerate(self)
+        else:
+            it, *_ = arg
+            assert(len(self)==len(it))
+            it = zip(it, self)
+        fmt = lambda x: '\n>%s\n%s\n' % (x[0],''.join(filter(lambda x: not x.islower(), x[1])))
+        for i in it:
+            output.write(fmt(i))
 
-        if cl:
-            output.close()
+    def to_xma(self, *arg, output=sys.stdout, head='xmaoutput'):
+        assert len(self.shape)==2
+        ispos  = np.where(self.ispos()==True)[0]
+        self   = self[:,ispos.min():1+ispos.max()]
+        if len(arg)==0:
+            it = enumerate(self)
+        else:
+            it, *_ = arg
+            assert(len(self)==len(it))
+            it = zip(it, self)
+        ns, no = self.positions().shape
+        head   = '[0_(1)=%s(%s){go=0,gx=0,pn=0.0,lf=0,rf=0}:\n(%s)%s\n\n' % (head, ns, no, '*'*no)
+        it     = enumerate(it)
+
+        fmtseq = lambda x: ''.join(x)
+        ent1   = lambda x: (sum(i!='-' for i in x), sum(not i.islower() for i in x))
+
+        output.write(head)
+        for ind, (name, seq) in it:
+            seq = fmtseq(seq)
+            fmt = '$%s=%s(%s)\n>%s\n{()%s()}*\n\n' % (1+ind,*ent1(seq),name,seq)
+            output.write(fmt)
+        output.write('_0].\n\n')
+
+#     def export(self, name, output=None, format=None, **kwargs):
+#         ext = lambda x: x.split('.')[-1]
+#         if format==None:
+#             if output==None:
+#                 format = 'cfa'
+#             else:
+#                 format = ext(output)
+#         if output==None:
+#             output=sys.stdout
+#             cl = False
+#         else:
+#             output=open(output, 'w')
+#             cl = True
+
+#         exp = AlignmentExporter()
+#         if   format in ('cfa'):
+#             exp.to_cfa(self, name, output)
+#         elif format in ('fasta', 'fa'):
+#             exp.to_fasta(self, name, output)
+#         elif format in ('cma', 'mma'):
+#             exp.to_xma(self, name, output, **kwargs)
+
+#         if cl:
+#             output.close()
 
 ############################################ visualizing the alignment
 
@@ -130,7 +177,7 @@ class AlignmentArray(np.ndarray):
     def show(self, **kwargs):
         return self.PositionArray(v=0).show(**kwargs)
 
-############################################    ############################################
+############################################
 
 alphabet = 'ARNDCQEGHILKMFPSTWYV-'
 

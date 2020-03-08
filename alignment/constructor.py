@@ -65,15 +65,15 @@ def from_ndarray(name, data):
         if data.shape[2]==1:
             data = data[:,:,0]
         else:
-            return finalize(name, data)
+            return name, data
     if len(data.shape)==2:
-        return finalize(name, data)
+        return name, data
     else:
         raise AssertionError('Could not create alignment array, unexpected format received')
         
-def finalize(name, data, optimize=True):
+def finalize(name, data, remove_unused_cols=True):
     dim = len(data.shape)
-    if optimize and 2==dim:
+    if remove_unused_cols and 2==dim:
         # optimization: delete dead insertion columns
         ispos  = lambda x: False if len(x)!=1 else not x.islower()
         isdead = lambda x: {''}==set(x)
@@ -87,14 +87,37 @@ def finalize(name, data, optimize=True):
     if dim==3:
         return name, alnarray3d(data)
 
-def AlignmentArray(input, format=None):
-    if type(input)==str:
-        fmt    = lambda x: x.split('.')[-1].lower()
-        format = fmt(input) if format == None else format
+def AlignmentArray(*args, format=None, remove_unused_cols=True, v=1):
+    """
+    USAGE 1: FROM FILES
+        name, aln = AlignmentArray('file.fasta', remove_unused_cols=False)
+
+
+    USAGE 2: FROM LISTS 
+        name   = ['a','b','c']
+        aln    = [
+                    ['A','','A','A'],
+                    ['A','','A','A'],
+                    ['A','','A','A']
+                 ]
+        name, aln = AlignmentArray(name, aln, remove_unused_cols=False)
+    """
+    # first check if the input is a filename
+    if len(args)==1 and type(args[0])==str:
+        input   = args[0]
+        fmt     = lambda x: x.split('.')[-1].lower()
+        format  = fmt(input) if format == None else format
     if format in ['cfa']:
-        return from_cfa(input)
+        return finalize(*from_cfa(input, v=v), remove_unused_cols=remove_unused_cols)
     if format in ['fasta','fa']:
-        return from_fasta(input)
+        return finalize(*from_fasta(input, v=v), remove_unused_cols=remove_unused_cols)
+
+    # now check if the input is 2 lists: name and alignment list
+    if len(args)==2:
+        if all(type(i) in (list,tuple) for i in args):
+            return finalize(*from_list(*args), remove_unused_cols=remove_unused_cols)
+        
+    # at this point, give up on trying to parse it
     else:
         raise Exception('Format not recognized')
 

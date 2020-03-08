@@ -45,4 +45,6 @@ from .read import *
 
 from .alignment.constructor import AlignmentArray as AlignmentArray
 
+from .read.xma import xmaReader as xma
+
 

@@ -29,7 +29,8 @@ def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60, title='
               'scale_width'     : True,
               'stacks_per_line' : 999999,
               'show_errorbars'  : False}
-    stream = BytesIO(weblogo.png_print_formatter(*SequenceLogoPlot(data, **params)))
+    logodata, logoformat = SequenceLogoPlot(data, **params)
+    stream = BytesIO(weblogo.png_print_formatter(logodata, logoformat))
 
     img = Image.open(stream).convert('RGBA')
     img = np.array(img.convert('RGBA'))[::-1]

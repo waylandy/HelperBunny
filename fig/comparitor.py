@@ -9,25 +9,11 @@ def CompareLogo(*args, sync=True, **kwargs):
     plot = []
     for n, (name, seq) in enumerate(args):
         try:
-            del logo
+            seq = seq.PositionArray(v=0)
         except:
             pass
-        logo = SequenceLogoViewer(seq, **kwargs)
+        logo = SequenceLogoViewer(seq, title=name, **kwargs)
         plot.append([logo])
-        title = Label(text = name,
-                      x        = 0,
-                      x_offset = 35,
-                      x_units = 'screen', 
-                      y        = plot[n][0].plot_height, 
-                      y_offset = -64,
-                      y_units = 'screen',
-                      background_fill_color = 'white',
-                      background_fill_alpha = 50,
-                      text_font_size        = '15pt',
-                      text_font             = 'monospace',
-                     )
-        #title = Title(text=name,align='center',text_font='monospace',text_font_size='15pt')
-        plot[n][0].add_layout(title, 'left')
     if sync:
         ip   = iter(plot)
         base = next(ip)[0].x_range

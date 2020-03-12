@@ -2,7 +2,7 @@ import sys
 import numpy as np
 
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, Plot, Grid, Range1d,          SingleIntervalTicker, LinearAxis
+from bokeh.models import ColumnDataSource, Plot, Grid, Range1d, SingleIntervalTicker, LinearAxis, Label
 from bokeh.models.glyphs import Text, Rect
 
 aa_color = { # based on default colors from weblogo3
@@ -29,9 +29,12 @@ aa_color = { # based on default colors from weblogo3
     '-': 'white'
     }
 
-def AlignmentViewer(data, scale=17, maxrows=20, color=aa_color, plot_width=1000, highlight=False):
+def AlignmentViewer(data, scale=17, maxrows=20, color=aa_color, plot_width=1000, highlight=False, labels=[]):
     # data is a position array
     osh    = data.shape[0]
+    if len(labels)!=0:
+        assert len(labels)==osh
+    labels = labels[:maxrows] if 0!=len(labels) else []
     data   = data[:maxrows] if data.shape[0] > maxrows else data
     x, y   = data.shape[::-1]
     x, y   = np.meshgrid(np.arange(1, 1+x), np.arange(0,y,1))
@@ -39,14 +42,15 @@ def AlignmentViewer(data, scale=17, maxrows=20, color=aa_color, plot_width=1000,
     recty  = y + 0.5
     h      = 1/data.shape[0]
     text   = data.flatten()   
-    dic    = dict(x     = x, 
-                  y     = y, 
-                  recty = recty, 
-                  text  = text,
-                  color = [color[i] if i in color else 'white' for i in text]
+    dic    = dict(x      = x, 
+                  y      = y, 
+                  recty  = recty, 
+                  text   = text,
+                  color  = [color[i] if i in color else 'white' for i in text]
                   )
 
     source      = ColumnDataSource(dic)
+
     plot_height = data.shape[0]*scale
     fontsize    = scale/1.7
     plot   = figure(title            = None, 
@@ -61,6 +65,24 @@ def AlignmentViewer(data, scale=17, maxrows=20, color=aa_color, plot_width=1000,
                     background_fill_color = 'black',
                     background_fill_alpha = 0.12,
                    )
+
+    ############################ VERY BAD IMPLEMENTATION, REWORK TO USE COLUMNDATASOURCE
+    if 0!=len(labels):
+        for n, lab in enumerate(labels):
+            seqids = Label(text    = lab,
+                          x        = 0,
+                          x_offset = 16,
+                          x_units  = 'screen', 
+                          y        = -1-n, 
+                          y_units  = 'data',
+                          # background_fill_color = 'white',
+                          # background_fill_alpha = 50,
+                          text_font_size        = '10pt',
+                          text_font             = 'monospace'
+                          )
+            plot.add_layout(seqids)
+    ############################
+
 
     ticker = SingleIntervalTicker(interval=5, num_minor_ticks=5)
     xaxis = LinearAxis(ticker=ticker)

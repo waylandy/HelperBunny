@@ -1,7 +1,7 @@
 import numpy as np
 
 from io import StringIO, BytesIO
-from bokeh.models import Range1d
+from bokeh.models import Range1d, Label, Title
 from PIL import Image
 
 from bokeh.plotting import figure, show
@@ -18,7 +18,7 @@ def SequenceLogoPlot(data, **kwargs):
     logoformat  = weblogo.LogoFormat(logodata, logooptions)
     return logodata, logoformat
 
-def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60):
+def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60, title='', stat=True):
     params = {'title'           : '',
               'fineprint'       : '',
               'show_yaxis'      : False,
@@ -43,7 +43,35 @@ def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60):
                                 x_axis_type= None,
                                 x_range=Range1d(0,plot_width/scale),
                                 y_range=Range1d(0,1.09),
-                                tools="xpan,reset")
+                                tools='xpan,reset',
+                                toolbar_location=None)
+
+    title = Label(text = title,
+                  x        = 0,
+                  x_offset = 35,
+                  x_units  = 'screen', 
+                  y        = plot.plot_height, 
+                  y_offset = -64,
+                  y_units  = 'screen',
+                  background_fill_color = 'white',
+                  background_fill_alpha = 50,
+                  text_font_size        = '15pt',
+                  text_font             = 'monospace')
+    plot.add_layout(title)
+
+    stat = Label(text      = 'seq=%s pos=%s'%data.shape,
+                  x        = plot.plot_width,
+                  x_offset = -14,
+                  x_units  = 'screen', 
+                  y        = plot.plot_height, 
+                  y_offset = -46,
+                  y_units  = 'screen',
+                  background_fill_color = 'white',
+                  background_fill_alpha = 50,
+                  text_font_size        = '10pt',
+                  text_align            = 'right',
+                  text_font             = 'monospace')
+    if stat: plot.add_layout(stat)
 
     ticker = SingleIntervalTicker(interval=5, num_minor_ticks=5)
     xaxis = LinearAxis(ticker=ticker)

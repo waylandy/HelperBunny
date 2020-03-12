@@ -265,10 +265,10 @@ class PositionArray(np.ndarray):
         plot = fig.AlignmentViewer(self, **kwargs)
         fig.show(plot)
 
-    def show(self, plot_width=1000):
+    def show(self, plot_width=1000, scale=20, maxrows=20):
         # takes in a position array
         plot1   = fig.SequenceLogoViewer(self, plot_width=plot_width, plot_height=230)
-        plot2   = fig.AlignmentViewer(self, plot_width=plot_width, scale=20)
+        plot2   = fig.AlignmentViewer(self, plot_width=plot_width, scale=scale, maxrows=maxrows)
         plot1.x_range = plot2.x_range
         plot1.xaxis.visible = False
         plot = fig.gridplot([[plot1], [plot2]], toolbar_location=None)

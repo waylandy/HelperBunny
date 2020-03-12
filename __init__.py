@@ -42,9 +42,6 @@ sudo python3 -m pip install numpy pandas scipy bokeh panel pillow
 
 from .read import *
 
-
 from .alignment.constructor import AlignmentArray as AlignmentArray
-
 from .read.xma import xmaReader as xma
-
-
+from .fig.comparitor import CompareLogo

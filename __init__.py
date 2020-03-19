@@ -47,4 +47,4 @@ from .read.xma import xmaReader as xma
 
 
 from .fig.comparitor import CompareLogo
-
+from .seqnames import SeqNames

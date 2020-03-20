@@ -47,4 +47,9 @@ from .read.xma import xmaReader as xma
 
 
 from .fig.comparitor import CompareLogo
+
+
+# no integration
 from .seqnames import SeqNames
+from .taxdump import Taxonomy
+

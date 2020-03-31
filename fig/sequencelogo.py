@@ -55,7 +55,7 @@ def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60, title='
                   y_offset = -64,
                   y_units  = 'screen',
                   background_fill_color = 'white',
-                  background_fill_alpha = 50,
+                  #background_fill_alpha = 50,
                   text_font_size        = '15pt',
                   text_font             = 'monospace')
     plot.add_layout(title)
@@ -68,7 +68,7 @@ def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60, title='
                   y_offset = -46,
                   y_units  = 'screen',
                   background_fill_color = 'white',
-                  background_fill_alpha = 50,
+                  #background_fill_alpha = 50,
                   text_font_size        = '10pt',
                   text_align            = 'right',
                   text_font             = 'monospace')

@@ -6,7 +6,7 @@ import sys
 from subprocess import call
 from itertools import groupby
 
-revision = '200319'
+revision = '200406'
 
 description = """
 mapfaster [ revision %s ]
@@ -164,9 +164,11 @@ class MapFaster:
                 sys.stderr.write('SPLITTING         : %s\r' % f)
                 with open(f, 'w') as w:
                     for _ in range(n):
-                        w.write('%s\n%s\n\n' % next(wi))
+                        nex = next(wi)
+                        w.write('%s\n%s\n\n' % (nex[0], nex[1].replace('-','').upper())) # remove gaps
             sys.stderr.write('\n')
             return [i[0] for i in partf]
+
         
         fpipe    = self.infile+'.PIPE'
         fpcmd    = self.infile+'.PCMD'
@@ -217,15 +219,138 @@ class MapFaster:
             sys.stderr.write('\n')
         return self.outfile
 
-###################################################################
+    def run_featurize(self):
+        def split_input(infile, nsplit):
+            fr     = fastaReader(infile)
+            t      = sum(1 for i in fr.validated_walk(v=2))
+            m, s   = t%nsplit, int(t/nsplit)
+            split  = [s+1 if i<m else s for i in range(nsplit)]
+            part   = lambda x: str(x+1).rjust(len(str(nsplit)), '0')
+            partf  = [(('%s.part%s' % (infile, part(n))), i) for n, i in enumerate(split)]
+            assert t == sum(split)
+            wi     = iter(fr.validated_walk(v=0))
+            for f, n in partf:
+                sys.stderr.write('SPLITTING         : %s\r' % f)
+                with open(f, 'w') as w:
+                    for _ in range(n):
+                        nex = next(wi)
+                        w.write('%s\n%s\n\n' % (nex[0], nex[1].replace('-','').upper())) # remove gaps
+            sys.stderr.write('\n')
+            return [i[0] for i in partf]
 
+        class IterFLF:
+            def __init__(self, fafile):
+                self._fafile = fafile
+                self.isname = lambda l: l[0]=='>'
+
+            def __iter__(self):
+                self._r = open(self._fafile)
+                self._i = groupby(self._r, self.isname)
+                self._s = False
+                return self
+
+            def __next__(self):
+                while True:
+                    head, group = next(self._i)
+                    if not head and self._s:
+                        self._s = False
+                    elif head:
+                        line = next(group)
+                    else:
+                        group = [i.rstrip() for i in group if not i.isspace()]
+                        assert len(set([len(i) for i in group])) == 1
+                        return line.rstrip()[1:], group
+
+        fpipe    = self.infile+'.PIPE'
+        fpcmd    = self.infile+'.PCMD'
+
+        nofeat   = self.infile+'.nofeat'
+        with open(nofeat, 'w') as w:
+            for name, d in IterFLF(self.infile):
+                w.write('>%s\n%s\n\n'%(name, d[0]))
+        
+        fsplit   = split_input(nofeat, self.nsplits)
+
+        mgc      = lambda x: '%s %s %s -O -I=999999999:999999999 -sense=%s' % (
+            self.mapgaps, self.profile, x, self.sense)
+        with open(fpipe, 'w') as w:
+            w.write('\n'.join(mgc(i) for i in fsplit))
+        with open(fpcmd, 'w') as w:
+            w.write('%s -u -j %s < %s' % (self.parallel, self.threads, fpipe))
+        sys.stderr.write('ALIGNING ...\n')
+        call(['bash',fpcmd])
+        os.remove(fpipe)
+        os.remove(fpcmd)
+        os.remove(nofeat)
+        for i in fsplit:
+            os.remove(i)
+
+        xp       = frozenset(i.split('/')[-1] for i in fsplit)
+        xs       = frozenset(['.cma','.seq','.mma'])
+        prefix   = lambda x: any(x.startswith(i) for i in xp)
+        suffix   = lambda x: any(x.endswith(i) for i in xs)
+        mgpout   = lambda x: prefix(x) and suffix(x)
+        left     = len(nofeat.split('/')[-1])+5
+        parto    = lambda x: x[left:].split('.')[0].split('_')
+        frago    = lambda x: (int(x[0]), int(x[1]) if x[1].isnumeric() else -1)
+        frag     = lambda x: frago(parto(x))[::-1]
+        mgpout   = sorted((i for i in os.listdir(self.workdir) if mgpout(i)), key=frag)
+
+        with open(self.outfile, 'w') as w:
+            for f in mgpout:
+                r,p = frag(f)
+                f   = self.workdir+f
+                if r<0:
+                    os.remove(f)
+                    continue
+                if f.endswith('.seq'):
+                    os.remove(f)
+                else:
+                    sys.stderr.write('MERGING           : %s\r' % f.split('/')[-1])
+                    xma = xmaReader(f)
+                    it  = iter(xma.gen_cfa())
+                    (na, se), pr = next(it)
+                    sys.stderr.write('DROPPING ENTRY    : %s\n' % na[1:])
+                    for (na, se), pr in it:
+                        w.write('%s profile=%s\n%s%s%s\n\n' % (na,pr,se[0].lower(),se[1],se[2].lower()))
+                    os.remove(f)
+            sys.stderr.write('\n')
+            
+        def overlay(features, alignment):
+            def ovl(ref, target):
+                assert len(target) == sum(i!='-' for i in ref)
+                n, o = 0, ''
+                for i in ref:
+                    if i != '-':
+                        o += target[n]
+                        n += 1
+                    else:
+                        o += '-'
+                return o
+            has  = set(i[0].split()[0] for i in IterFLF(alignment))
+            info = dict(i for i in IterFLF(features) if i[0].split()[0] in has)
+
+
+            outfile = alignment+'+'
+            with open(outfile, 'w') as w:
+                for name, seq in IterFLF(alignment):
+                    out = '>%s\n%s\n%s\n\n' % (name, seq[0], '\n'.join([ovl(seq[0], s) for s in info[name.split()[0]][1:]]))
+                    w.write(out)
+            return outfile
+        
+        self.outfileplus = overlay(self.infile, self.outfile)
+        
+        return self.outfile, self.outfileplus
+
+###################################################################
 import argparse
 
 parser = argparse.ArgumentParser(description=description, usage=argparse.SUPPRESS, formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('-profile', type=str  , help="alignment profile",                                default='')
-parser.add_argument('-s'      , type=int  , help="number of times to split the input ; default 1 " , default=1)
-parser.add_argument('-t'      , type=int  , help="number of threads                  ; default 1 " , default=1)
+parser.add_argument('-s'      , type=int  , help="number of times to split the input ; default 1"  , default=1)
+parser.add_argument('-t'      , type=int  , help="number of threads                  ; default 1"  , default=1)
 parser.add_argument('-sense'  , type=float, help="orginal sense option               ; default 0.9", default=0.9)
+parser.add_argument('-f'                  , help="flag for inputting string-featurized alignments" , action='store_true')
 args, unk = parser.parse_known_args()
 
 PARALLEL = 'parallel'
@@ -240,6 +365,9 @@ mapper   = MapFaster(unk[0],
                      threads  = args.t,
                      sense    = args.sense,
                     )
-mapper.run()
 
+if args.f:
+    mapper.run_featurize()
+else:
+    mapper.run()
 

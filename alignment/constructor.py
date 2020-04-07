@@ -113,10 +113,15 @@ def AlignmentArray(*args, format=None, remove_unused_cols=True, v=1):
         return finalize(*from_fasta(input, v=v), remove_unused_cols=remove_unused_cols)
 
     # now check if the input is 2 lists: name and alignment list
-    if len(args)==2:
-        if all(type(i) in (list,tuple) for i in args):
-            return finalize(*from_list(*args), remove_unused_cols=remove_unused_cols)
-        
+    # new plan : just try to force it into alignment array
+    try:
+        assert len(args)==2
+        args = tuple(arg.tolist() if 'tolist' in dir(arg) else arg for arg in args)
+        assert all(type(i) in (list,tuple) for i in args)
+        return finalize(*from_list(*args), remove_unused_cols=remove_unused_cols)
+    except:
+        pass
+
     # at this point, give up on trying to parse it
     else:
         raise Exception('Format not recognized')

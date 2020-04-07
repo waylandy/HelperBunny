@@ -51,5 +51,6 @@ from .fig.comparitor import CompareLogo
 
 # no integration
 from .seqnames import SeqNames
-from .taxdump import Taxonomy
+from .taxdump import taxdump
+
 

@@ -38,6 +38,7 @@ def SequenceLogoViewer(data, plot_width=1000, plot_height=230, scale=60, title='
     a0  = np.where(img[:,:,3].sum(0)!=0)[0]
     a1  = np.where(img[:,:,3].sum(1)!=0)[0]
     img = img[a1.min():1+a1.max(),a0.min():1+a0.max()]
+    img = img[:,img[:,:,3][0]!=0] # optional fix to remove superstretched elements?
 
     plot               = figure(plot_width=plot_width, 
                                 plot_height=plot_height, 

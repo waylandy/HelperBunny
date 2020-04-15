@@ -1,10 +1,14 @@
 import numpy as np
 
 class SeqNames(dict):
-    def __init__(self, names):
+    def __init__(self, names, tags=['up', 'rf'], query=[]):
         self.names = names
-        self.parse_uniprot()
-        self.parse_profiles()
+        if 'up' in tags:
+            self.parse_uniprot()
+        if 'rf' in tags:
+            self.parse_profiles()
+        for q in query:
+            self.parse_query(q)
     
     def map_names(self, fxn=None):
         def septag(name, div='=:'):
@@ -42,9 +46,19 @@ class SeqNames(dict):
         self['profile'] = []
         for name in self.map_names():
             try:
-                name = tuple(i[8:] for i in filter(lambda x: x.startswith('profile:'), name))
-                self['profile'] += [name]
+                name = tuple(i[8:] for i in filter(lambda x: x.startswith('profile='), name))
+                self['profile'] += [name[-1]]
             except:
                 self['profile'] += [()]
         self['profile'] = np.array(self['profile'], dtype=object)
 
+    def parse_query(self, prefix):
+        self[prefix] = []
+        for name in self.map_names():
+            try:
+                lp   = len(prefix)
+                name = tuple(i[lp:] for i in filter(lambda x: x.startswith(prefix), name))
+                self[prefix] += [name[-1]]
+            except:
+                self[prefix] += [()]
+        self[prefix] = np.array(self[prefix], dtype=object)

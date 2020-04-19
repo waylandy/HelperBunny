@@ -165,17 +165,30 @@ class taxdumpTree:
         for node, name in ifetch(c):
             self.tree.nodes[node]['name'] = name
 
-    def lineage(self, ind):
-        out = {'no rank':[]}
-        for i in nx.dfs_successors(self.tree, ind):
-            rank = self.tree.nodes[i]['rank']
-            name = self.tree.nodes[i]['name']
-            if rank=='no rank':
-                out[rank] += [name] 
-            else:
-                out[rank]  = name
-        return out 
+    def lineage(self, ind, format='list'):
+        try:
+            ind = int(ind)
+            
+            if format=='list':
+                out = []
+                for i in nx.dfs_successors(self.tree, ind):
+                    out += [[self.tree.nodes[i]['rank'], self.tree.nodes[i]['name']]]
+                return out 
 
+            if format=='dict':
+                out = {'no rank':[]}
+                for i in nx.dfs_successors(self.tree, ind):
+                    rank = self.tree.nodes[i]['rank']
+                    name = self.tree.nodes[i]['name']
+                    if rank=='no rank':
+                        out[rank] += [name] 
+                    else:
+                        out[rank]  = name
+                return out
+
+        except:
+            sys.stderr.write('FAILED QUERY: %s\n' % ind)
+            return None
 
 
 

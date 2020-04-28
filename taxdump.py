@@ -157,6 +157,7 @@ class taxdumpTree:
         c    = conn.cursor()
 
         self.tree = nx.DiGraph() # this object requires about 3gb ram 
+
         c.execute("""SELECT "tax_id", "parent tax_id", "rank" FROM nodes """ )
         for node, parent, rank in ifetch(c):
             self.tree.add_edge(node,parent)
@@ -164,11 +165,15 @@ class taxdumpTree:
         c.execute("""SELECT "tax_id", "name_txt" FROM names WHERE "name class" = "scientific name" """ )
         for node, name in ifetch(c):
             self.tree.nodes[node]['name'] = name
+        self.name2ox = dict((self.tree.nodes[i]['name'],i) for i in self.tree.nodes)
 
-    def lineage(self, ind, format='list'):
+    def lineage(self, ind, format='list', v=False):
         try:
-            ind = int(ind)
-            
+            if ind in self.name2ox:
+                ind = self.name2ox[ind]
+            else:
+                ind = int(ind)
+
             if format=='list':
                 out = []
                 for i in nx.dfs_successors(self.tree, ind):
@@ -187,8 +192,8 @@ class taxdumpTree:
                 return out
 
         except:
-            sys.stderr.write('FAILED QUERY: %s\n' % ind)
+            if v:
+                sys.stderr.write('FAILED QUERY: %s\n' % ind)
             return None
-
 
 

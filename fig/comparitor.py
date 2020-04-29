@@ -18,8 +18,8 @@ def CompareLogo(*args, sync=True, **kwargs):
                 base = logo.x_range if base==0 else base
             else:
 
-                if len(seq)==3: # 3 args doesn't seem to work
-                    p = BarGraph(*seq[:2], names=seq[2], **kwargs)
+                if len(seq)==3:
+                    p = BarGraph(*seq[:2], names=[_ for _ in seq[2]], **kwargs)
                 if len(seq)==2:
                     p = BarGraph(*seq[:2], **kwargs)
                 plot.append([p])

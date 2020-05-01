@@ -52,5 +52,4 @@ from .fig.comparitor import CompareLogo
 # no integration
 from .seqnames import SeqNames
 from .taxdump import taxdump
-
-
+from .pdbmeta import pdbmeta

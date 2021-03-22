@@ -109,7 +109,7 @@ def constructor(*args, format=None, remove_unused_cols=True, v=1):
         input   = args[0]
         fmt     = lambda x: x.split('.')[-1].lower()
         format  = fmt(input) if format == None else format
-    if format in ['cfa']:
+    if format in ['cfa','a2m']:
         return optimize(*from_cfa(input, v=v), remove_unused_cols=remove_unused_cols)
     if format in ['fasta','fa']:
         return optimize(*from_fasta(input, v=v), remove_unused_cols=remove_unused_cols)

@@ -21,15 +21,30 @@ class AlignmentArray(np.ndarray):
     ####################################################################################
     #####  inherit np.ndarray                                                      #####
     ####################################################################################
-
+    
     def __new__(cls, ndarray, names=None):
         obj = np.asarray(ndarray, dtype=object).view(cls)
         return obj
 
     def __array_finalize__(self, obj):
+        # indexing and ufuncs pass thru this
         if obj is None: 
             return
+        self.info = getattr(obj, 'info', None)
+        
+    def __array_wrap__(self, out_arr, context=None):
+        # only ufuncs pass thru this
+        # TO DO: test behavior on all possible ufuncs applicable to sequence alignments
+ 
+        if (out_arr.dtype == object):
+            return out_arr
+        else:
+            return out_arr.view(np.ndarray)
 
+        # documentation claims i should return:
+        # super(AlignmentArray, self).__array_wrap__(self, out_arr, context)
+        # this breaks code after second run (need more testing)
+    
     ####################################################################################
     #####  alignment properties                                                    #####
     ####################################################################################

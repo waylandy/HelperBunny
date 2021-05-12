@@ -36,6 +36,7 @@ sudo python3 -m pip install numpy pandas scipy bokeh panel pillow
 from .sequence_parser.fasta import read_fasta
 from .sequence_parser.cfa import read_cfa
 from .sequence_parser.xma import read_xma
+from .sequence_parser.a2m import read_a2m
 
 from .alignment_array.sequenceheaders import SequenceHeaders
 

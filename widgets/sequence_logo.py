@@ -10,9 +10,10 @@ from bokeh.models import SingleIntervalTicker, LinearAxis
 from ..ext.weblogo import weblogo
 
 def SequenceLogo(AlignmentArray, output='png', **kwargs):
-    stream      = StringIO(''.join(AlignmentArray.generate_fasta()))
-    seqs        = weblogo.read_seq_data(stream)
-    logodata    = weblogo.LogoData.from_seqs(seqs)
+    A           = AlignmentArray.remove_inserts()
+    alphabet    = weblogo.seq.unambiguous_protein_alphabet
+    counts      = np.array([(A==i).sum(0) for i in alphabet]).T
+    logodata    = weblogo.LogoData.from_counts(alphabet, counts)
     logooptions = weblogo.LogoOptions(**kwargs)
     logoformat  = weblogo.LogoFormat(logodata, logooptions)
     if output == 'eps':

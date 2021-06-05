@@ -11,7 +11,7 @@ Edits from other contributers on the same day should append their initials to __
 
 import sys
 
-__release__ = 'X'
+__release__ = '??????'
 __version__ = __release__
 
 sys.stderr.write("""
@@ -28,22 +28,18 @@ sudo python3 -m pip install numpy pandas scipy bokeh panel pillow
 
 """.strip() % __version__)
 
+from .parsers.sequence_fasta import read_fasta
+from .parsers.sequence_xma   import read_xma
 
+from .alignment_array.constructor     import gen_array
+from .alignment_array.alignmentarray  import AlignmentArray
+from .alignment_array.headerarray     import SequenceHeaders
 
+from .alignment_array.pottsmodel      import Potts
 
+from .alignment_array.constraints     import SequenceConstraints
 
-
-from .sequence_parser.fasta import read_fasta
-from .sequence_parser.cfa import read_cfa
-from .sequence_parser.xma import read_xma
-from .sequence_parser.a2m import read_a2m
-
-from .alignment_array.sequenceheaders import SequenceHeaders
-
-from .alignment_array.constraints import SequenceConstraints
-from .alignment_array.constructor import constructor as AlignmentArray
-
-from .database.taxonomy import TaxonomyDatabase
+from .database.taxonomy               import TaxonomyDatabase
 
 
 

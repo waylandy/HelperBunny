@@ -7,13 +7,13 @@ import numpy as np
 
 class Potts:
     def __init__(self):
-        self.H     = None
+        self.couplings = None
     
     def __repr__(self):
-        if type(self.H)!=np.ndarray:
+        if type(self.couplings)!=np.ndarray:
             return f'< Potts: no data >'
         else:
-            return f'< Potts: size={self.H.shape}, nseq={self.nseqs} >'
+            return f'< Potts: size={self.couplings.shape}, nseq={self.nseqs} >'
     
     def get_fn_apc(self, H):
         # calculate frobenius norm
@@ -31,7 +31,7 @@ class Potts:
         return fn, fn_apc
     
     def from_ccmpred(self, AlignmentArray, bin='ccmpred'):
-        if type(self.H)==np.ndarray:
+        if type(self.couplings)==np.ndarray:
             raise Exception('refusing to overwrite existing model')
 
         char        = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -75,12 +75,12 @@ class Potts:
             # verify ccmpred alphabet in source code
             self.states = np.array(list('ARNDCQEGHILKMFPSTWYV-'))
             
-            self.nsites = A.shape[1]
-            self.nseqs  = A.shape[0]
-            self.H      = couplings
-            self.fields = fields
+            self.nsites    = A.shape[1]
+            self.nseqs     = A.shape[0]
+            self.couplings = couplings
+            self.fields    = fields
             
-            self.fn, self.fn_apc = self.get_fn_apc(self.H)
+            self.fn, self.fn_apc = self.get_fn_apc(self.couplings)
         
         except KeyboardInterrupt:
             for file in (file_psicov,file_fn_apc,file_params):
@@ -91,20 +91,21 @@ class Potts:
         return self
 
     def dump(self, filename):
-        if type(self.H)!=np.ndarray:
+        if type(self.couplings)!=np.ndarray:
             raise Exception('no data to save')
-        data = {'H':self.H, 'fields':self.fields, 'nseqs':self.nseqs, 'states':self.states}
+        data = {'couplings':self.couplings, 'fields':self.fields, 'nseqs':self.nseqs, 'states':self.states}
         np.savez_compressed(filename, **data)
         
     def load(self, filename):
-        if type(self.H)==np.ndarray:
+        if type(self.couplings)==np.ndarray:
             raise Exception('refusing to overwrite existing model')
         data = np.load(filename)
-        self.H      = data['H']
-        self.fields = data['fields']
-        self.nseqs  = data['nseqs']
-        self.states = data['states']
-        self.nsites = self.H.shape[0]
-        self.fn, self.fn_apc = self.get_fn_apc(self.H)
+        # Potts Hamiltonian E(s) is summation of all fields and all couplings
+        self.couplings = data['couplings']  # J ij Si Sj
+        self.fields    = data['fields']     # h i Si
+        self.nseqs     = data['nseqs']
+        self.states    = data['states']
+        self.nsites    = self.couplings.shape[0]
+        self.fn, self.fn_apc = self.get_fn_apc(self.couplings)
         return self
 

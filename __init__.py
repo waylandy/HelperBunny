@@ -36,6 +36,7 @@ from .alignment_array.alignmentarray  import AlignmentArray
 from .alignment_array.headerarray     import SequenceHeaders
 
 from .alignment_array.pottsmodel      import Potts
+from .alignment_array.cdhit           import CD_HIT
 
 from .alignment_array.constraints     import SequenceConstraints
 

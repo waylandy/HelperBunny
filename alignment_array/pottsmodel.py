@@ -30,7 +30,7 @@ class Potts:
         
         return fn, fn_apc
     
-    def from_ccmpred(self, AlignmentArray, bin='ccmpred'):
+    def from_ccmpred(self, AlignmentArray, bin='ccmpred', n=5000, e=0.01):
         if type(self.couplings)==np.ndarray:
             raise Exception('refusing to overwrite existing model')
 
@@ -46,7 +46,7 @@ class Potts:
             with open(file_psicov, 'w') as w:
                 for sequence in A:
                     w.write(''.join(sequence)+'\n')
-            cmd = f'{bin} -n 5000 -e 0.01 -r {file_params} {file_psicov} {file_fn_apc}'
+            cmd = f'{bin} -n {n} -e {e} -r {file_params} {file_psicov} {file_fn_apc}'
             sys.stderr.write(f'{cmd}\n')
             call(cmd.split())
             
@@ -66,7 +66,7 @@ class Potts:
             couplings = np.zeros((sites,sites,states,states))
             for (i, j), c in pairs:
                     couplings[i, j] = c
-                    couplings[j, i] = c
+                    couplings[j, i] = c.T
                     
             for file in (file_psicov,file_fn_apc,file_params):
                 if os.path.isfile(file):

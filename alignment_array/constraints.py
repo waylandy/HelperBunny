@@ -66,7 +66,7 @@ class Constraints:
     
     def fit(self, x):
         # assume indices = position - 1
-        x = x.positions()
+        x = x.remove_inserts()
         s = np.zeros(x.shape[0])
         for r, n, w in zip(self.residues, self.positions-1, self.norm):
             s += w*np.array([a==x[:,n] for a in r]).any(0)

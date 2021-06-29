@@ -22,7 +22,8 @@ params = {'title'           : '',
           'tic_length'      : 1,
           'scale_width'     : True,
           'stacks_per_line' : 999999,
-          'show_errorbars'  : False}
+          'show_errorbars'  : False,
+          'logo_font'       : "ArialMT"}
 
 class SequenceLogo:
     def __init__(self, AlignmentArray):
@@ -57,7 +58,8 @@ class SequenceLogo:
                   'tic_length'      : 1,
                   'scale_width'     : True,
                   'stacks_per_line' : 999999,
-                  'show_errorbars'  : False}
+                  'show_errorbars'  : False,
+                  'logo_font'       : "ArialMT"}
         buffer = BytesIO()
         stream = BytesIO(self.print_png(**params))
         img    = Image.open(stream).convert('RGBA')

@@ -141,7 +141,7 @@ class MapFaster:
         self.infile     = os.path.abspath(self.infile)
         self.workdir    = os.path.dirname(self.infile)+'/'
         
-        rename          = lambda x: x[:-3]+'.cfa' if x.endswith('.fa') else x+'.cfa'
+        rename          = lambda x: x[:-3]+'.a2m' if x.endswith('.fa') else x+'.a2m'
         self.outfile    = rename(self.infile) if outfile==None else outfile
 
         assert nsplits >= threads 

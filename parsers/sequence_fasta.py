@@ -1,6 +1,8 @@
+import io
+import os
 from itertools import groupby
 
-def read_fasta(file):
+def _read_fasta(file):
     """ 
     iterable  : works for reading fasta, fa, a3m, a2m
     yields    : (header, sequence)
@@ -19,3 +21,27 @@ def read_fasta(file):
             if sequence != '':
                 yield header, sequence
 
+def read_fasta(arg):
+    if os.path.exists(arg): 
+        # if arg is an alignment file
+        handle = open(arg)
+    elif type(arg)==str: 
+        # assume that arg the contents of a file
+        handle = io.StringIO()
+        handle.write(arg)
+        handle.seek(0)
+    else:
+        raise Exception('Invalid input')
+
+    is_header = lambda x: x.startswith('>')
+    compress  = lambda x: ''.join(_.strip() for _ in x)
+    for n, (key, group) in enumerate(groupby(handle, is_header)):
+        if key:
+            for header in group:
+                header = header[1:].strip()
+        elif n==0:
+            continue
+        else:
+            sequence = compress(group)
+            if sequence != '':
+                yield header, sequence

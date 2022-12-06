@@ -22,7 +22,7 @@ def read_lpr(file):
             g = map(q,filter(lambda x: p.match(x), g))
             g = [s(j.replace(':','').split()) for j in g]
             g = pd.DataFrame(g, columns=col)
-            yield int(n.split()[-1]), g
+            yield n.split()[-1], g
 
 def read_con(file):
     """

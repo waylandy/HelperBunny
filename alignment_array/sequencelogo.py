@@ -44,10 +44,16 @@ class SequenceLogo:
         raise Exception('Failed to write stream.')
     
     def print_png(self, *args, **kwargs):
-        logooptions = weblogo.LogoOptions(**kwargs)
-        logoformat  = weblogo.LogoFormat(self.logodata, logooptions)
-        stream      = weblogo.png_print_formatter(self.logodata, logoformat)
-        return self.writer(stream, *args)
+        # logooptions = weblogo.LogoOptions(**kwargs)
+        # logoformat  = weblogo.LogoFormat(self.logodata, logooptions)
+        # stream      = weblogo.png_print_formatter(self.logodata, logoformat)
+        # return self.writer(stream, *args)
+        
+        image = Image.open(BytesIO(self.print_eps(**kwargs)))
+        image.load(scale=3)
+        stream = BytesIO()
+        image.save(stream, format='png')
+        return self.writer(stream.getvalue(), *args)
     
     def print_png_cropped(self, *args):
         params = {'title'           : '',
@@ -133,7 +139,11 @@ class SequenceLogo:
         plot.grid.visible  = False
         plot.yaxis.visible = False
         plot.xaxis.visible = True
+        
         img = Image.open(BytesIO(self.print_png_cropped())).convert('RGB')
         img = np.array(img.convert('RGBA'))[::-1]
-        plot.image_rgba(image=[img], x=.5, y=0, dw=dim[1], dh=1)
+        buffer = np.zeros(img.shape[:2], dtype=np.uint32)
+        view = buffer.view(dtype=np.uint8).reshape((*img.shape[:2], 4))
+        view[:] = img
+        plot.image_rgba(image=[buffer], x=.5, y=0, dw=dim[1], dh=1)
         return show(plot)

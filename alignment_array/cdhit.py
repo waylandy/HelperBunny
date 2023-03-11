@@ -1,6 +1,6 @@
 import os
 import sys
-from subprocess import call
+from subprocess import call, DEVNULL
 
 import numpy as np
 
@@ -13,7 +13,7 @@ class CD_HIT:
             raise Exception('Identity parameter must be between 1.0 - 0.5')
         return 5 if c>= 0.7 else 4 if c>= 0.6 else 3 if c>= 0.5 else 2
 
-    def run_cdhit(self, AlignmentArray, bin='cdhit', c=0.98, T=20, M=0):
+    def run_cdhit(self, AlignmentArray, bin='cdhit', c=0.98, T=20, M=0, silent=True):
         char    = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         rand    = ''.join(np.random.choice(list(char), 6))
         A       = AlignmentArray
@@ -39,9 +39,10 @@ class CD_HIT:
             for c, n in queries:
                 output = f'cdhit_{rand}_{c}.fasta'
                 cmd    = f'{bin} -c {c} -n {n} -T {T} -M {M} -i {infile} -o {output}'
-                sys.stderr.write(cmd+'\n')
-                call(cmd.split())
-
+                if not silent:
+                    sys.stderr.write(cmd+'\n')
+                call(cmd.split(), stdout=DEVNULL)
+                
                 os.remove(f'{output}.clstr')
 
                 ind = np.zeros(nseqs, dtype=bool)

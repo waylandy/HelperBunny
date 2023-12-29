@@ -60,7 +60,7 @@ class HMMforage:
             n_pos = tophits.searched_nodes
             for hit in tophits:
                 seq_name = hit.name.decode()
-                seq_description = hit.description.decode()
+                seq_description = '' if hit.description is None else hit.description.decode()
                 evalue = hit.evalue
                 domain = hit.best_domain
                 hmm_name = domain.alignment.hmm_name.decode()

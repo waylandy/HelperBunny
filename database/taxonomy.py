@@ -10,204 +10,230 @@ import networkx as nx
 
 LIBHB    = '%s/.libhb/' % os.path.expanduser('~')
 
-class NCBItaxdump:
-    def __init__(self, path=LIBHB):
+"""
+taxdump = TaxonomyDatabase()
+q = np.array(['Boops boops',942147,'environmental samples','1964143',None,''])
+t = taxdump.get_taxonomy(q)
+"""
+
+class TaxonomyDatabase:
+    def __init__(self, path=LIBHB, update=28):
         self.path = path
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-            
-        self.db = '%staxdump.sqlite' % path
-        self.update()
-        
-    def download(self):
-        url      = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz'
-        filename = self.path+'taxdump.tar.gz'
-        sys.stderr.write('Downloading taxdump.tar.gz from ncbi\n')
+        self.db_file = f'{path}/taxdump.sqlite'
+        self.update = update
+        self.db_date = 'None'
+
+    def __repr__(self):
+        return f'< TaxonomyDatabase: db_date={self.db_date} >'
+
+    @staticmethod
+    def download(dest_file):
+        url  = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz'
         request  = requests.get(url, stream=True)
-        with open(filename, 'wb') as f:
+        with open(dest_file, 'wb') as w:
             for chunk in request.iter_content(chunk_size=1024):
-                f.write(chunk)
-                f.flush()
-        tar      = tarfile.open(filename, mode='r')
-        contents = dict((f,self.path+f) for f in tar.getnames())
-        sys.stderr.write('Extracting contents\n')
-        tar.extractall(path=self.path)
-        
-    def make_db(self):
-        """ uses the download function """
-        
-        parse    = lambda x: x.rstrip('\t|\n').split('\t|\t')
-        itaxdump = lambda x: (parse(i) for i in open(self.path+x, 'r'))
-        
-        conn = sqlite3.connect(self.db)
-        c    = conn.cursor()
-        
-        sys.stderr.write('Creating sqlite table: nodes\n')
-        c.execute('''CREATE TABLE nodes (
-            "tax_id"                         INTEGER,
-            "parent tax_id"                  INTEGER,
-            "rank"                           TEXT,
-            "embl code"                      TEXT,
-            "division id"                    TEXT,
-            "inherited div flag"             INTEGER,
-            "genetic code id"                TEXT,
-            "inherited GC flag"              INTEGER,
-            "mitochondrial genetic code id"  TEXT,
-            "inherited MGC flag"             INTEGER,
-            "GenBank hidden flag"            INTEGER,
-            "hidden subtree root flag"       TEXT
-            )''')
-        for row in itaxdump('nodes.dmp'):
-            c.execute('INSERT INTO nodes VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', row[:12]) # row 13 contains comments
-        c.execute('CREATE UNIQUE INDEX nodes_index on nodes (tax_id)')
-        conn.commit()
+                w.write(chunk)
+                w.flush()
 
-        sys.stderr.write('Creating sqlite table: names\n')
-        c.execute('''CREATE TABLE names (
-            "tax_id"                         INTEGER,
-            "name_txt"                       TEXT,
-            "unique name"                    TEXT,
-            "name class"                     TEXT
-            )''')
-        for row in itaxdump('names.dmp'):
-            c.execute('INSERT INTO names VALUES (?,?,?,?)', row)
-        conn.commit()
-    
-    def clean(self):
-        sys.stderr.write('Cleaning up extracted files\n')
-        for file in ['citations.dmp','delnodes.dmp','division.dmp','gc.prt','gencode.dmp',
-                     'merged.dmp','names.dmp','nodes.dmp','readme.txt']:
-            os.remove(self.path+file)
+    @staticmethod
+    def build(taxdump_file, taxdump_db, update=0):
+        if os.path.isfile(taxdump_db):
+            last_written = os.path.getmtime(taxdump_db)
+            now = datetime.now().timestamp()
+            delta = int((now - last_written) / 86400) # seconds / day
+            if delta >= update:
+                os.rename(taxdump_db, taxdump_db+'_old')
+            else:
+                return
             
-    def update(self, force=False):
-        if os.path.isfile(self.db):
-            last   = os.path.getmtime(self.db)
-            now    = datetime.now().timestamp()
-            days   = (now-last)/86400 # seconds in a day
-            update = days > 20
-        else:
-            update = True
+        sys.stderr.write('Downloading taxdump\n')
+        TaxonomyDatabase.download(taxdump_file)
 
-        if update or force:
-            if os.path.isfile(self.db):
-                os.rename(self.db, self.db+'.bak')
-            self.download()
-            self.make_db()
-            self.clean()
+        conn = sqlite3.connect(taxdump_db)
+        cur = conn.cursor()
+
+        tar = tarfile.open(taxdump_file, "r:gz")
+        for member in tar.getmembers():
+            handle = tar.extractfile(member)
+            
+            if member.name == 'nodes.dmp': # nodes.dmp (load first 3 cols)
+                cur.execute('''CREATE TABLE nodes (
+                    "tax_id"         INTEGER,
+                    "parent tax_id"  INTEGER,
+                    "rank"           TEXT
+                    )''')
+                for *row, _ in map(lambda x: x.decode().split('\t|\t', 3), handle):
+                    cur.execute('INSERT INTO nodes VALUES (?,?,?)', row)
+                conn.commit()
+                sys.stderr.write('| creating table : nodes\n')
+            
+            if member.name == 'names.dmp': # names.dmp (load first 4 cols, keep first 2)
+                cur.execute('''CREATE TABLE names (
+                    "tax_id"         INTEGER,
+                    "name_txt"       TEXT
+                    )''')
+                for row in map(lambda x: x.decode().rstrip('\t|\n').split('\t|\t'), handle):
+                    if row[3] == 'scientific name':
+                        cur.execute('INSERT INTO names VALUES (?,?)', row[:2])
+                conn.commit()
+                sys.stderr.write('| creating table : names\n')
+            
+            if member.name == 'merged.dmp': # merged.dmp (load all cols)
+                cur.execute('''CREATE TABLE merged (
+                    "old_tax_id"     INTEGER,
+                    "new_tax_id"     INTEGER
+                    )''')
+                for row in map(lambda x: x.decode().rstrip('\t|\n').split('\t|\t'), handle):
+                    cur.execute('INSERT INTO merged VALUES (?,?)', row[:2])
+                conn.commit()
+                sys.stderr.write('| creating table : merged\n')
+
+        conn.close()
+
+    def connect(self):
+        taxdump_file = f'{self.path}/taxdump.tar.gz'
+        TaxonomyDatabase.build(taxdump_file, self.db_file, update=self.update)
+        self.db_date = datetime.fromtimestamp(os.path.getmtime(taxdump_file)).strftime('%m-%d-%Y')
+        return sqlite3.connect(self.db_file)
+    
+    def get_taxonomy(self, query):
+        conn = self.connect()
+        cur = conn.cursor()
+
+        # convert old to new ids
+        cur.execute("""SELECT "old_tax_id", "new_tax_id" FROM merged""")
+        merged = dict(cur.fetchall())
+
+        # convert names to ids (if unique)
+        cur.execute("""SELECT "name_txt", "tax_id" FROM names GROUP BY "name_txt" HAVING COUNT("tax_id") == 1""")
+        name2id = dict(cur.fetchall())
+
+        # convert ids to names
+        cur.execute("""SELECT "tax_id", "name_txt" FROM names""")
+        id2name = dict(cur.fetchall())
         
-    def node(self, tax_id):
-        conn = sqlite3.connect(self.db)
-        return taxdumpNode(tax_id, conn)
+        # get query node ids
+        size = len(query)
+        query_ids = np.zeros(size, dtype=int)
+        for n, i in enumerate(query):
+            if type(i) == str:
+                if i.isnumeric():
+                    i = int(i)
+                elif i in name2id:
+                    query_ids[n] = name2id[i]
+            if type(i) == int:
+                if i in merged:
+                    i = merged[i]
+                if i in id2name:
+                    query_ids[n] = i
+                    
+        del merged
+        del name2id
 
-class Species:
-    def __init__(self, tax, species):
-        self.species = np.array(species, dtype=object)
-        self.lineage = np.array([tax.lineage(sp) for sp in species], dtype=object)
-        self.lindict = np.array([{} if i==None else dict(j for j in  i if j[0] not in ('clade','no rank')) for i in self.lineage], dtype=object)
+        # load nodes
+        cur.execute("""SELECT "tax_id", "parent tax_id", "rank" FROM nodes """)
+        node_arr = dict(zip(["tax_id", "parent tax_id", "rank"], zip(*cur.fetchall())))
+        node_arr["tax_id"       ] = np.array(node_arr["tax_id"       ], dtype=int)
+        node_arr["parent tax_id"] = np.array(node_arr["parent tax_id"], dtype=int)
+        node_arr["rank"         ] = np.array(node_arr["rank"         ], dtype=object)
+        
+        assert 0 not in node_arr['tax_id']
+        assert 0 not in node_arr['parent tax_id']
+
+        # mask ancestors
+        n_nodes = 0
+        mask = np.isin(node_arr['tax_id'], query_ids, assume_unique=False)
+        while n_nodes != mask.sum():
+            # print(f'|\no {n_nodes}')
+            n_nodes = mask.sum()
+            ancestors = node_arr["parent tax_id"][mask]
+            mask += np.isin(node_arr['tax_id'], ancestors, assume_unique=False)
+
+        node_arr["tax_id"       ] = node_arr["tax_id"       ][mask]
+        node_arr["parent tax_id"] = node_arr["parent tax_id"][mask]
+        id2rank = dict(zip(node_arr["tax_id"], node_arr["rank"][mask]))
+        
+        # build tree
+        cladogram = nx.DiGraph()
+        cladogram.add_edges_from(np.array([node_arr["tax_id"], node_arr["parent tax_id"]]).T)
+        for i in cladogram.nodes():
+            cladogram.nodes[i]['name'] = id2name[i]
+            cladogram.nodes[i]['rank'] = id2rank[i]
+            
+        del node_arr
+        del id2name
+        del id2rank
+            
+        return Taxonomy(query_ids, cladogram)
+
+class Taxonomy:
+    def __init__(self, query_ids, cladogram):
+        self.query_ids = query_ids
+        self.cladogram = cladogram
+
+        _unique_ids = {}
+        for n, i in enumerate(self.query_ids):
+            if i not in _unique_ids:
+                _unique_ids[i] = []
+            _unique_ids[i] += [n]
+        
+        self._unique_ids = np.array(list(_unique_ids.keys()), dtype=int)
+        self._unique_indices = np.array(list(_unique_ids.values()), dtype=object)
+        
+        self._unique_ranks = []
+        self._unique_lineages = []
+        
+        self._ranks = set()
+        for i in self._unique_ids:
+            ids = self.get_successors(i)[::-1]
+            ranks = {}
+            lineage = []
+
+            for i in ids:
+                node = self.cladogram.nodes[i]
+                rank, name = node['rank'], node['name']
+                if rank not in ('clade','no rank'):
+                    self._ranks.add(rank)
+                    ranks[rank] = name
+                lineage += [name]
+                
+            self._unique_ranks += [ranks]
+            self._unique_lineages += [tuple(lineage)]
+            
+        self._unique_ranks = np.array(self._unique_ranks, dtype=object)
+        self._unique_lineages = np.array(self._unique_lineages, dtype=object)
     
     def __repr__(self):
-        x = len(self.species), len(set(self.species)), sum(self.lineage==None)
-        return '<Species: %s sequences in %s species (%s unknown)>' % x
+        n_taxa = len(set(filter(lambda x: x!=0, self.query_ids)))
+        n_nodes = self.cladogram.number_of_nodes()
+        n_seqs = self.query_ids.size
+        n_unmapped = (self.query_ids == 0).sum()
+        return f'<Taxonomy: {n_taxa} taxa; {n_nodes} nodes; {n_seqs} queries; {n_unmapped} unmapped>'
     
     def __getitem__ (self, key):
-        # if key is taxonomic rank, returns that rank from all lineages
-        # if key is name, returns all lineages containing that name
-        rank = set(j[0] for i in self.lineage if i!=None for j in i)
-        if key in rank and key not in ('clade','no rank'):
-            return np.array([i[key] if key in i else None for i in self.lindict], dtype=object)
+        if key in self._ranks:
+            arr = np.full(self.query_ids.size, '', dtype=object)
+            for ndx, rank in zip(self._unique_indices, self._unique_ranks):
+                if key in rank:
+                    arr[ndx] = rank[key]
+            return arr
         else:
-            return np.array([False if i==None else key in (j[1] for j in i) for i in self.lineage], dtype=bool)
+            arr = np.full(self.query_ids.size, False)
+            for ndx, lineage in zip(self._unique_indices, self._unique_lineages):
+                arr[ndx] = key in lineage
+            return arr
     
-    def taxa(self, mode='species'):
-        # count by species or by sequences
-        if mode=='species':
-            x = np.unique(self.species, return_index=True)[1]
-            x = self.lineage[x]
-        elif mode=='sequence':
-            x = self.lineage
+    def get_successors(self, query_id):
+        if query_id != 0:
+            return [query_id] + [i[0] for i in nx.dfs_successors(self.cladogram, query_id).values()]
         else:
-            raise Exception('Mode not recognized. Choose either "species" or "sequence"')
-            
-        c = {}
-        for l in x:
-            if l == None:
-                continue
-            for t in l:
-                t = tuple(t)
-                if t not in c:
-                    c[t] = 0
-                c[t] += 1
-        return sorted((c[i], i) for i in c)[::-1]
+            return []
     
-class TaxonomyDatabase:
-    def __init__(self, db=LIBHB):
-        self.db = db
-        
-    def __repr__(self):
-        try:
-            self.tree
-            d = os.path.getmtime(self.db+'taxdump.sqlite')
-            d = datetime.fromtimestamp(d).strftime('%Y-%m-%d')
-            return '<TaxonomyDatabase: NCBI taxdump (%s)' % d
-        except:
-            return '<TaxonomyDatabase: no database loaded>'
-        
-    def load(self):
-        NCBItaxdump(path=self.db)
-        
-        def ifetch(cursor):
-            while True:
-                f = cursor.fetchone()
-                if f == None:
-                    break
-                yield f
-                
-        conn = sqlite3.connect(self.db+'/taxdump.sqlite')
-        c    = conn.cursor()
-
-        self.tree = nx.DiGraph() # this object requires about 3gb ram 
-
-        c.execute("""SELECT "tax_id", "parent tax_id", "rank" FROM nodes """ )
-        for node, parent, rank in ifetch(c):
-            self.tree.add_edge(node,parent)
-            self.tree.nodes[node]['rank'] = rank
-        c.execute("""SELECT "tax_id", "name_txt" FROM names WHERE "name class" = "scientific name" """ )
-        for node, name in ifetch(c):
-            self.tree.nodes[node]['name'] = name
-        self.name2ox = dict((self.tree.nodes[i]['name'],i) for i in self.tree.nodes)
-        return self
-    
-    def lineage(self, ind, format='list', v=False):
-        try:
-            if ind in self.name2ox:
-                ind = self.name2ox[ind]
-            else:
-                ind = int(ind)
-
-            if format=='list':
-                out = []
-                for i in nx.dfs_successors(self.tree, ind):
-                    out += [[self.tree.nodes[i]['rank'], self.tree.nodes[i]['name']]]
-                return out 
-
-            if format=='dict':
-                out = {'no rank':[]}
-                for i in nx.dfs_successors(self.tree, ind):
-                    rank = self.tree.nodes[i]['rank']
-                    name = self.tree.nodes[i]['name']
-                    if rank=='no rank':
-                        out[rank] += [name] 
-                    else:
-                        out[rank]  = name
-                return out
-
-        except:
-            if v:
-                sys.stderr.write('FAILED QUERY: %s\n' % ind)
-            return None
-
-    def taxonomy(self, species):
-        return Species(self, species)
+    def count_rank(self, rank):
+        if rank in self._ranks:
+            ranks, counts = np.unique(self[rank], return_counts=True)
+            sort = np.argsort(counts)[::-1]
+            return np.array([counts[sort], ranks[sort]], dtype=object).T
 
 
 

@@ -1,14 +1,15 @@
 import os
 import sys
-from datetime import datetime
 import tarfile
-import requests
 import sqlite3
+import requests
+from datetime import datetime
+from itertools import groupby
 
 import numpy as np
 import networkx as nx
 
-LIBHB    = '%s/.libhb/' % os.path.expanduser('~')
+LIBHB = '%s/.libhb/' % os.path.expanduser('~')
 
 """
 taxdump = TaxonomyDatabase()
@@ -17,46 +18,41 @@ t = taxdump.get_taxonomy(q)
 """
 
 class TaxonomyDatabase:
-    def __init__(self, path=LIBHB, update=28):
-        self.path = path
-        self.db_file = f'{path}/taxdump.sqlite'
-        self.update = update
-        self.db_date = 'None'
+    def __init__(self, path=LIBHB, update=1):
+        self.taxdump_gz = f'{path}/taxdump.tar.gz'
+        self.taxdump_db = f'{path}/taxdump.db'
 
-    def __repr__(self):
-        return f'< TaxonomyDatabase: db_date={self.db_date} >'
+        if not os.path.isdir(path):
+            os.makedirs(path)
+        
+        if os.path.isfile(self.taxdump_db):
+            last_written = os.path.getmtime(self.taxdump_db)
+            elapsed = (datetime.now().timestamp() - last_written) // 86400 # seconds / day
+            if (elapsed != None) and (elapsed >= update):
+                os.rename(self.taxdump_db, f'{self.taxdump_db}_old')
 
-    @staticmethod
-    def download(dest_file):
+        if not os.path.exists(self.taxdump_db):
+            self.download()
+            self.build()
+        
+    def download(self):
         url  = 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz'
         request  = requests.get(url, stream=True)
-        with open(dest_file, 'wb') as w:
+        sys.stderr.write('downloading taxdump\n')
+        with open(self.taxdump_gz, 'wb') as w:
             for chunk in request.iter_content(chunk_size=1024):
                 w.write(chunk)
                 w.flush()
-
-    @staticmethod
-    def build(taxdump_file, taxdump_db, update=0):
-        if os.path.isfile(taxdump_db):
-            last_written = os.path.getmtime(taxdump_db)
-            now = datetime.now().timestamp()
-            delta = int((now - last_written) / 86400) # seconds / day
-            if delta >= update:
-                os.rename(taxdump_db, taxdump_db+'_old')
-            else:
-                return
-            
-        sys.stderr.write('Downloading taxdump\n')
-        TaxonomyDatabase.download(taxdump_file)
-
-        conn = sqlite3.connect(taxdump_db)
+    
+    def build(self):
+        conn = sqlite3.connect(self.taxdump_db)
         cur = conn.cursor()
 
-        tar = tarfile.open(taxdump_file, "r:gz")
+        tar = tarfile.open(self.taxdump_gz, "r:gz")
         for member in tar.getmembers():
             handle = tar.extractfile(member)
             
-            if member.name == 'nodes.dmp': # nodes.dmp (load first 3 cols)
+            if member.name == 'nodes.dmp': # nodes.dmp
                 cur.execute('''CREATE TABLE nodes (
                     "tax_id"         INTEGER,
                     "parent tax_id"  INTEGER,
@@ -67,18 +63,7 @@ class TaxonomyDatabase:
                 conn.commit()
                 sys.stderr.write('| creating table : nodes\n')
             
-            if member.name == 'names.dmp': # names.dmp (load first 4 cols, keep first 2)
-                cur.execute('''CREATE TABLE names (
-                    "tax_id"         INTEGER,
-                    "name_txt"       TEXT
-                    )''')
-                for row in map(lambda x: x.decode().rstrip('\t|\n').split('\t|\t'), handle):
-                    if row[3] == 'scientific name':
-                        cur.execute('INSERT INTO names VALUES (?,?)', row[:2])
-                conn.commit()
-                sys.stderr.write('| creating table : names\n')
-            
-            if member.name == 'merged.dmp': # merged.dmp (load all cols)
+            if member.name == 'merged.dmp': # merged.dmp
                 cur.execute('''CREATE TABLE merged (
                     "old_tax_id"     INTEGER,
                     "new_tax_id"     INTEGER
@@ -87,49 +72,61 @@ class TaxonomyDatabase:
                     cur.execute('INSERT INTO merged VALUES (?,?)', row[:2])
                 conn.commit()
                 sys.stderr.write('| creating table : merged\n')
-
+            
+            if member.name == 'names.dmp': # names.dmp
+                cur.execute('''CREATE TABLE names (
+                    "tax_id"         INTEGER,
+                    "name_txt"       TEXT,
+                    "name_class"     TEXT
+                    )''')
+                for row in map(lambda x: x.decode().rstrip('\t|\n').split('\t|\t'), handle):
+                    cur.execute('INSERT INTO names VALUES (?,?,?)', (*row[:2], row[3]))
+                sys.stderr.write('| creating table : names\n')
+                conn.commit()
+        
         conn.close()
 
-    def connect(self):
-        taxdump_file = f'{self.path}/taxdump.tar.gz'
-        TaxonomyDatabase.build(taxdump_file, self.db_file, update=self.update)
-        self.db_date = datetime.fromtimestamp(os.path.getmtime(taxdump_file)).strftime('%m-%d-%Y')
-        return sqlite3.connect(self.db_file)
-    
     def get_taxonomy(self, query):
-        conn = self.connect()
+        conn = sqlite3.connect(self.taxdump_db)
         cur = conn.cursor()
-
-        # convert old to new ids
+        
+        # old to new ids
         cur.execute("""SELECT "old_tax_id", "new_tax_id" FROM merged""")
         merged = dict(cur.fetchall())
-
-        # convert names to ids (if unique)
-        cur.execute("""SELECT "name_txt", "tax_id" FROM names GROUP BY "name_txt" HAVING COUNT("tax_id") == 1""")
-        name2id = dict(cur.fetchall())
-
-        # convert ids to names
-        cur.execute("""SELECT "tax_id", "name_txt" FROM names""")
+        
+        # names to ids (if unique)
+        name2id = {}
+        cur.execute("""SELECT "name_txt", "tax_id" FROM names WHERE "name_class" == 'scientific name' GROUP BY "name_txt" HAVING COUNT("tax_id") == 1""")
+        name2id['scientific'] = dict(cur.fetchall())
+        cur.execute("""SELECT "name_txt", "tax_id" FROM names WHERE "name_class" == 'synonym' GROUP BY "name_txt" HAVING COUNT("tax_id") == 1""")
+        name2id['synonym'] = dict(cur.fetchall())
+        # cur.execute("""SELECT "name_txt", "tax_id" FROM names WHERE "name_class" == 'authority' GROUP BY "name_txt" HAVING COUNT("tax_id") == 1""")
+        # name2id['authority'] = dict(cur.fetchall())
+        
+        # ids to names
+        cur.execute("""SELECT "tax_id", "name_txt" FROM names WHERE "name_class" == 'scientific name'""")
         id2name = dict(cur.fetchall())
         
-        # get query node ids
-        size = len(query)
-        query_ids = np.zeros(size, dtype=int)
-        for n, i in enumerate(query):
+        taxids = np.zeros(len(query), dtype=int)
+        for n, i in enumerate(query.tolist() if type(query) == np.ndarray else query):
             if type(i) == str:
-                if i.isnumeric():
+                if i.strip().isdigit():
                     i = int(i)
-                elif i in name2id:
-                    query_ids[n] = name2id[i]
+                elif i in name2id['scientific']:
+                    i = name2id['scientific'][i]
+                elif i in name2id['synonym']:
+                    i = name2id['synonym'][i]
+                # elif i in name2id['authority']:
+                #     i = name2id['authority'][i]
             if type(i) == int:
                 if i in merged:
                     i = merged[i]
                 if i in id2name:
-                    query_ids[n] = i
-                    
+                    taxids[n] = i
+                
         del merged
         del name2id
-
+        
         # load nodes
         cur.execute("""SELECT "tax_id", "parent tax_id", "rank" FROM nodes """)
         node_arr = dict(zip(["tax_id", "parent tax_id", "rank"], zip(*cur.fetchall())))
@@ -139,16 +136,15 @@ class TaxonomyDatabase:
         
         assert 0 not in node_arr['tax_id']
         assert 0 not in node_arr['parent tax_id']
-
+        
         # mask ancestors
         n_nodes = 0
-        mask = np.isin(node_arr['tax_id'], query_ids, assume_unique=False)
+        mask = np.isin(node_arr['tax_id'], taxids, assume_unique=False)
         while n_nodes != mask.sum():
-            # print(f'|\no {n_nodes}')
             n_nodes = mask.sum()
             ancestors = node_arr["parent tax_id"][mask]
             mask += np.isin(node_arr['tax_id'], ancestors, assume_unique=False)
-
+            
         node_arr["tax_id"       ] = node_arr["tax_id"       ][mask]
         node_arr["parent tax_id"] = node_arr["parent tax_id"][mask]
         id2rank = dict(zip(node_arr["tax_id"], node_arr["rank"][mask]))
@@ -163,19 +159,16 @@ class TaxonomyDatabase:
         del node_arr
         del id2name
         del id2rank
-            
-        return Taxonomy(query_ids, cladogram)
+
+        return Taxonomy(taxids, cladogram)
 
 class Taxonomy:
-    def __init__(self, query_ids, cladogram):
-        self.query_ids = query_ids
+    def __init__(self, taxids, cladogram):
+        self.taxids = taxids
         self.cladogram = cladogram
 
-        _unique_ids = {}
-        for n, i in enumerate(self.query_ids):
-            if i not in _unique_ids:
-                _unique_ids[i] = []
-            _unique_ids[i] += [n]
+        groups = groupby(sorted(i[::-1] for i in enumerate(self.taxids)), lambda x: x[0])
+        _unique_ids = {k: [i[1] for i in g] for k, g in groups}
         
         self._unique_ids = np.array(list(_unique_ids.keys()), dtype=int)
         self._unique_indices = np.array(list(_unique_ids.values()), dtype=object)
@@ -204,21 +197,21 @@ class Taxonomy:
         self._unique_lineages = np.array(self._unique_lineages, dtype=object)
     
     def __repr__(self):
-        n_taxa = len(set(filter(lambda x: x!=0, self.query_ids)))
+        n_taxa = len(set(filter(lambda x: x!=0, self.taxids)))
         n_nodes = self.cladogram.number_of_nodes()
-        n_seqs = self.query_ids.size
-        n_unmapped = (self.query_ids == 0).sum()
+        n_seqs = self.taxids.size
+        n_unmapped = (self.taxids == 0).sum()
         return f'<Taxonomy: {n_taxa} taxa; {n_nodes} nodes; {n_seqs} queries; {n_unmapped} unmapped>'
     
     def __getitem__ (self, key):
         if key in self._ranks:
-            arr = np.full(self.query_ids.size, '', dtype=object)
+            arr = np.full(self.taxids.size, '', dtype=object)
             for ndx, rank in zip(self._unique_indices, self._unique_ranks):
                 if key in rank:
                     arr[ndx] = rank[key]
             return arr
         else:
-            arr = np.full(self.query_ids.size, False)
+            arr = np.full(self.taxids.size, False)
             for ndx, lineage in zip(self._unique_indices, self._unique_lineages):
                 arr[ndx] = key in lineage
             return arr
@@ -234,6 +227,4 @@ class Taxonomy:
             ranks, counts = np.unique(self[rank], return_counts=True)
             sort = np.argsort(counts)[::-1]
             return np.array([counts[sort], ranks[sort]], dtype=object).T
-
-
 

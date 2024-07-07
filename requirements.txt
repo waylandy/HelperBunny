@@ -1,0 +1,14 @@
+numpy
+scipy
+pandas
+pillow
+networkx
+
+panel
+bokeh
+
+torch
+
+weblogo
+pyhmmer
+
